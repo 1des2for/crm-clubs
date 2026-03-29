@@ -1,0 +1,15 @@
+/node_modules
+/build
+
+*.pdf
+*.url
+*.txt
+*.bat
+*.bmp
+*.heic
+*.tif
+*.gif
+*.svg
+
+src/API Keys*
+src/Mozilla-Recovery-Key*

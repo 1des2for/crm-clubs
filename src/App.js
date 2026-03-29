@@ -1,0 +1,2686 @@
+import { useState, useEffect } from "react";
+import logo from "./logo.jpg";
+import { supabase } from "./supabaseClient";
+
+function App() {
+  const utilisateurs = [
+    { login: "adrien", mdp: "vt01", nom: "Adrien" },
+    { login: "herve", mdp: "vt02", nom: "Hervé" },
+    { login: "bruno", mdp: "bf2504", nom: "Bruno" },
+    { login: "arbresle", mdp: "vt03", nom: "Arbresle" },
+    { login: "confluence", mdp: "vt04", nom: "Confluence" },
+    { login: "compta", mdp: "vt05", nom: "Compta" }
+  ];
+
+  const [magasinsClub, setMagasinsClub] = useState([]);
+  const [contactsClub, setContactsClub] = useState([]);
+  const [actionsClub, setActionsClub] = useState([]);
+  const [historiquesClub, setHistoriquesClub] = useState([]);
+  const [toutesActions, setToutesActions] = useState([]);
+  const [planning, setPlanning] = useState([]);
+  const [allContacts, setAllContacts] = useState([]);
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [userConnected, setUserConnected] = useState(null);
+  const [screen, setScreen] = useState("dashboard");
+  const [clubSelected, setClubSelected] = useState(null);
+  const [clubs, setClubs] = useState([]);
+
+  const [sportsOptions, setSportsOptions] = useState(() => {
+    try {
+      const data = localStorage.getItem("sportsOptions");
+      return data
+        ? JSON.parse(data)
+        : [
+            "Football",
+            "Basket",
+            "Rugby",
+            "Running",
+            "Handball",
+            "Tennis",
+            "Volley",
+            "Natation",
+            "Cyclisme",
+            "Multisport"
+          ];
+    } catch (e) {
+      console.log("ERREUR localStorage sportsOptions :", e);
+      return [
+        "Football",
+        "Basket",
+        "Rugby",
+        "Running",
+        "Handball",
+        "Tennis",
+        "Volley",
+        "Natation",
+        "Cyclisme",
+        "Multisport"
+      ];
+    }
+  });
+
+  const [historiqueTypeOptions, setHistoriqueTypeOptions] = useState(() => {
+    try {
+      const data = localStorage.getItem("historiqueTypeOptions");
+      return data
+        ? JSON.parse(data)
+        : ["Concurrence", "Équipement saison", "Observation"];
+    } catch (e) {
+      console.log("ERREUR localStorage historiqueTypeOptions :", e);
+      return ["Concurrence", "Équipement saison", "Observation"];
+    }
+  });
+
+  const [nomClub, setNomClub] = useState("");
+  const [villeClub, setVilleClub] = useState("");
+  const [adherentsClub, setAdherentsClub] = useState("");
+  const [potentielClub, setPotentielClub] = useState("");
+  const [sportClub, setSportClub] = useState("");
+  const [nouveauSportClub, setNouveauSportClub] = useState("");
+
+  const [magasinsCreation, setMagasinsCreation] = useState([
+    { nom: "L’Arbresle", taux: "100" }
+  ]);
+
+  const [contactNom, setContactNom] = useState("");
+  const [contactFonction, setContactFonction] = useState("");
+  const [contactTelephone, setContactTelephone] = useState("");
+  const [contactMail, setContactMail] = useState("");
+  const [piecesClub, setPiecesClub] = useState([]);
+
+  const aujourdHui = new Date();
+  const dateDuJourInput = aujourdHui.toISOString().split("T")[0];
+  const moisDuJourInput = `${aujourdHui.getFullYear()}-${String(
+    aujourdHui.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  const [actionType, setActionType] = useState("Visite club");
+  const [actionDate, setActionDate] = useState(dateDuJourInput);
+  const [actionCommentaire, setActionCommentaire] = useState("");
+  const [actionMontantTTC, setActionMontantTTC] = useState("");
+
+  const [historiqueType, setHistoriqueType] = useState("Concurrence");
+  const [historiqueNouveauType, setHistoriqueNouveauType] = useState("");
+  const [historiqueDate, setHistoriqueDate] = useState(moisDuJourInput);
+  const [historiqueCommentaire, setHistoriqueCommentaire] = useState("");
+
+  const [planningJour, setPlanningJour] = useState("Lundi");
+  const [planningType, setPlanningType] = useState("Visite club");
+  const [planningCommentaire, setPlanningCommentaire] = useState("");
+
+  const [filtreCommercial, setFiltreCommercial] = useState("Moi");
+const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
+  const [dateDepuis, setDateDepuis] = useState(dateDuJourInput);
+  const [filtreSport, setFiltreSport] = useState("Tous les sports");
+  const [filtreFinancier, setFiltreFinancier] = useState("Tous");
+
+  const [pieceNom, setPieceNom] = useState("");
+  const [pieceType, setPieceType] = useState("");
+  const [pieceData, setPieceData] = useState("");
+
+  const [recherche, setRecherche] = useState("");
+
+  const [alerteDoublonClub, setAlerteDoublonClub] = useState("");
+  const [alerteDoublonContact, setAlerteDoublonContact] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("sportsOptions", JSON.stringify(sportsOptions));
+  }, [sportsOptions]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "historiqueTypeOptions",
+      JSON.stringify(historiqueTypeOptions)
+    );
+  }, [historiqueTypeOptions]);
+
+const chargerPiecesClub = async (clubId) => {
+  if (!clubId) {
+    setPiecesClub([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("pieces_jointes")
+    .select("*")
+    .eq("club_id", clubId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("ERREUR FETCH PIECES :", error);
+    setPiecesClub([]);
+    return;
+  }
+
+  setPiecesClub(data || []);
+};
+
+  const chargerClubs = async () => {
+    const { data, error } = await supabase.from("clubs").select("*");
+
+    if (error) {
+      console.log("ERROR FETCH CLUBS :", error);
+      setClubs([]);
+      return;
+    }
+
+    setClubs(data || []);
+  };
+
+  const chargerTousContacts = async () => {
+    const { data, error } = await supabase.from("contacts").select("*");
+
+    if (error) {
+      console.log("ERREUR FETCH TOUS CONTACTS :", error);
+      setAllContacts([]);
+      return;
+    }
+
+    setAllContacts(data || []);
+  };
+
+  const chargerToutesActions = async () => {
+    const { data, error } = await supabase.from("actions").select("*");
+
+    if (error) {
+      console.log("ERREUR FETCH TOUTES ACTIONS :", error);
+      setToutesActions([]);
+      return;
+    }
+
+    setToutesActions(data || []);
+  };
+
+  const chargerPlanning = async () => {
+    const { data, error } = await supabase
+      .from("planning")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (error) {
+      console.log("ERREUR FETCH PLANNING :", error);
+      setPlanning([]);
+      return;
+    }
+
+    setPlanning(data || []);
+  };
+
+  const chargerMagasinsClub = async (clubId) => {
+    if (!clubId) {
+      setMagasinsClub([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("magasins_club")
+      .select("*")
+      .eq("club_id", clubId);
+
+    if (error) {
+      console.log("ERREUR FETCH MAGASINS :", error);
+      setMagasinsClub([]);
+      return;
+    }
+
+    setMagasinsClub(data || []);
+  };
+
+  const chargerContactsClub = async (clubId) => {
+    if (!clubId) {
+      setContactsClub([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("club_id", clubId);
+
+    if (error) {
+      console.log("ERREUR FETCH CONTACTS :", error);
+      setContactsClub([]);
+      return;
+    }
+
+    setContactsClub(data || []);
+  };
+
+  const chargerActionsClub = async (clubId) => {
+    if (!clubId) {
+      setActionsClub([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("actions")
+      .select("*")
+      .eq("club_id", clubId)
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.log("ERREUR FETCH ACTIONS :", error);
+      setActionsClub([]);
+      return;
+    }
+
+    setActionsClub(data || []);
+  };
+
+  const chargerHistoriquesClub = async (clubId) => {
+    if (!clubId) {
+      setHistoriquesClub([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("historiques")
+      .select("*")
+      .eq("club_id", clubId)
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.log("ERREUR FETCH HISTORIQUES :", error);
+      setHistoriquesClub([]);
+      return;
+    }
+
+    setHistoriquesClub(data || []);
+  };
+
+  const chargerDetailClub = async (club) => {
+    setClubSelected(club);
+
+    const clubId = club?.id || club?.identifiant;
+
+await Promise.all([
+  chargerMagasinsClub(clubId),
+  chargerContactsClub(clubId),
+  chargerActionsClub(clubId),
+  chargerHistoriquesClub(clubId),
+  chargerPiecesClub(clubId)
+]);
+  };
+
+  useEffect(() => {
+    chargerClubs();
+    chargerTousContacts();
+    chargerToutesActions();
+    chargerPlanning();
+  }, []);
+
+  const supprimerContact = async (idContact) => {
+    const confirmation = window.confirm(
+      "Voulez-vous vraiment supprimer ce contact ?"
+    );
+    if (!confirmation) return;
+
+    const { error } = await supabase
+      .from("contacts")
+      .delete()
+      .eq("id", idContact);
+
+    if (error) {
+      console.log("ERREUR DELETE CONTACT :", error);
+      alert("Erreur lors de la suppression du contact");
+      return;
+    }
+
+    setContactsClub((prev) => prev.filter((c) => c.id !== idContact));
+    setAllContacts((prev) => prev.filter((c) => c.id !== idContact));
+  };
+
+  const handleLogin = () => {
+    const user = utilisateurs.find(
+      (u) => u.login === username && u.mdp === password
+    );
+
+    if (user) {
+      setUserConnected(user.nom);
+      setFiltreCommercial(user.nom);
+      return;
+    }
+
+    alert("Identifiants incorrects");
+  };
+
+  const prochainCodeClub = "CLB" + String(clubs.length + 1).padStart(3, "0");
+
+  const couleurCommercial =
+    userConnected === "Adrien"
+      ? "#800020"
+      : userConnected === "Hervé"
+      ? "#87CEEB"
+      : userConnected === "Bruno"
+      ? "#A9A9A9"
+      : userConnected === "Arbresle"
+      ? "#2E8B57"
+      : userConnected === "Confluence"
+      ? "#FF8C00"
+      : userConnected === "Compta"
+      ? "#4B0082"
+      : "#f2f2f2";
+
+  const stylePage = {
+    minHeight: "100vh",
+    background: couleurCommercial,
+    padding: 30,
+    fontFamily: "Arial"
+  };
+
+  const commercialActif =
+    filtreCommercial === "Moi" ? userConnected : filtreCommercial;
+
+  const clubsFiltresCommercial =
+    commercialActif === "Toute l'équipe"
+      ? clubs
+      : clubs.filter((club) => club.commercial === commercialActif);
+
+  function getDateLundiCourant() {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function getDatePremierJourMois() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+
+  function parseInputDate(dateString) {
+    if (!dateString) return null;
+    const d = new Date(dateString + "T00:00:00");
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+function isActionDansPeriode(action) {
+  if (!action.date) return false;
+
+  const actionDateObj = parseInputDate(action.date);
+  if (!actionDateObj) return false;
+
+  if (filtrePeriode === "Toutes périodes") {
+    return true;
+  }
+
+  if (filtrePeriode === "Semaine") {
+    return actionDateObj >= getDateLundiCourant();
+  }
+
+  if (filtrePeriode === "Mois") {
+    return actionDateObj >= getDatePremierJourMois();
+  }
+
+  if (filtrePeriode === "Depuis telle date") {
+    const dateRef = parseInputDate(dateDepuis);
+    if (!dateRef) return true;
+    return actionDateObj >= dateRef;
+  }
+
+  return true;
+}  
+
+function getTotauxClub(club) {
+  const actionsDuClub = actionsFiltrees.filter(
+    (a) => String(a.club_id) === String(club.id || club.identifiant)
+  );
+
+  const totalLivre = actionsDuClub
+    .filter((a) => a.type === "Livraison")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  const totalFacture = actionsDuClub
+    .filter((a) => a.type === "Facturé")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  const totalPaye = actionsDuClub
+    .filter((a) => a.type === "Payé")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  return { totalLivre, totalFacture, totalPaye };
+}
+
+  const toutesLesActions =
+    commercialActif === "Toute l'équipe"
+      ? toutesActions
+      : toutesActions.filter((a) => {
+          const club = clubs.find(
+            (c) => String(c.id || c.identifiant) === String(a.club_id)
+          );
+          return club && club.commercial === commercialActif;
+        });
+
+ const actionsFiltrees = toutesLesActions.filter(isActionDansPeriode);
+
+  function chargerPiece(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function (evt) {
+      setPieceNom(file.name);
+      setPieceType(file.type);
+      setPieceData(evt.target.result);
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function ajouterSportOption(nouveauSport) {
+    const valeur = (nouveauSport || "").trim();
+    if (valeur === "") return "";
+
+    const existe = sportsOptions.some(
+      (sport) => sport.toLowerCase() === valeur.toLowerCase()
+    );
+
+    if (!existe) {
+      setSportsOptions(
+        [...sportsOptions, valeur].sort((a, b) => a.localeCompare(b))
+      );
+    }
+
+    return valeur;
+  }
+
+  function ajouterHistoriqueTypeOption(nouveauType) {
+    const valeur = (nouveauType || "").trim();
+    if (valeur === "") return "";
+
+    const existe = historiqueTypeOptions.some(
+      (type) => type.toLowerCase() === valeur.toLowerCase()
+    );
+
+    if (!existe) {
+      setHistoriqueTypeOptions(
+        [...historiqueTypeOptions, valeur].sort((a, b) => a.localeCompare(b))
+      );
+    }
+
+    return valeur;
+  }
+
+  const rechercheMin = recherche.trim().toLowerCase();
+
+const clubsFiltres = clubsFiltresCommercial.filter((club) => {
+  const sportOk =
+    filtreSport === "Tous les sports" || (club.sport || "") === filtreSport;
+
+  if (!sportOk) return false;
+
+  const clubId = club.id || club.identifiant;
+
+  const actionsDuClub = toutesActions.filter(
+    (a) => String(a.club_id) === String(clubId)
+  );
+
+  const actionsDuClubDansPeriode = actionsDuClub.filter(isActionDansPeriode);
+
+  if (
+    filtrePeriode !== "Toutes périodes" &&
+    actionsDuClubDansPeriode.length === 0
+  ) {
+    return false;
+  }
+
+  const totalLivre = actionsDuClubDansPeriode
+    .filter((a) => a.type === "Livraison")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  const totalFacture = actionsDuClubDansPeriode
+    .filter((a) => a.type === "Facturé")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  const totalPaye = actionsDuClubDansPeriode
+    .filter((a) => a.type === "Payé")
+    .reduce((sum, a) => sum + (Number(a.montantTTC) || 0), 0);
+
+  if (filtreFinancier === "Livré non facturé" && !(totalLivre > totalFacture)) {
+    return false;
+  }
+
+  if (filtreFinancier === "Facturé non payé" && !(totalFacture > totalPaye)) {
+    return false;
+  }
+
+  if (rechercheMin === "") return true;
+
+  const codeClubMatch = (club.code || "").toLowerCase().includes(rechercheMin);
+  const nomClubMatch = (club.nom || "").toLowerCase().includes(rechercheMin);
+  const villeClubMatch = (club.ville || "").toLowerCase().includes(rechercheMin);
+  const sportClubMatch = (club.sport || "").toLowerCase().includes(rechercheMin);
+
+  const contactsDuClub = allContacts.filter(
+    (contact) => String(contact.club_id) === String(clubId)
+  );
+
+  const contactNomMatch = contactsDuClub.some((contact) =>
+    (contact.nom || "").toLowerCase().includes(rechercheMin)
+  );
+
+  const contactTelMatch = contactsDuClub.some((contact) =>
+    (contact.telephone || "").toLowerCase().includes(rechercheMin)
+  );
+
+  const contactMailMatch = contactsDuClub.some((contact) =>
+    (contact.mail || "").toLowerCase().includes(rechercheMin)
+  );
+
+  return (
+    codeClubMatch ||
+    nomClubMatch ||
+    villeClubMatch ||
+    sportClubMatch ||
+    contactNomMatch ||
+    contactTelMatch ||
+    contactMailMatch
+  );
+});
+const idsClubsFiltres = clubsFiltres.map((club) =>
+  String(club.id || club.identifiant)
+);
+
+const actionsDashboard = actionsFiltrees.filter((action) =>
+  idsClubsFiltres.includes(String(action.club_id))
+);
+const totalClubs = clubsFiltres.length;
+const totalActions = actionsDashboard.length;
+ const totalOffres = actionsDashboard.filter((a) => a.type === "Offre").length;
+const totalCommandes = actionsDashboard.filter(
+  (a) => a.type === "Commande"
+).length;
+const totalLivraisons = actionsDashboard.filter(
+  (a) => a.type === "Livraison"
+).length;
+const totalFacturations = actionsDashboard.filter(
+  (a) => a.type === "Facturé"
+).length;
+const totalRelances = actionsDashboard.filter(
+  (a) => a.type === "Relance"
+).length;
+
+const totalLivraisonsTTC = actionsDashboard
+  .filter((a) => a.type === "Livraison")
+  .reduce((total, action) => total + (Number(action.montantTTC) || 0), 0);
+
+ const totalFacturesTTC = actionsDashboard
+  .filter((a) => a.type === "Facturé")
+  .reduce((total, action) => total + (Number(action.montantTTC) || 0), 0);
+
+ const totalPayesTTC = actionsDashboard
+  .filter((a) => a.type === "Payé")
+  .reduce((total, action) => total + (Number(action.montantTTC) || 0), 0); 
+
+  const soldeRestantEncaisser = totalFacturesTTC - totalPayesTTC;
+
+const potentielTotal = clubsFiltres.reduce((total, club) => {
+  const valeur = Number(club.potentiel) || 0;
+  return total + valeur;
+}, 0);
+  function detecterDoublonClub(nomSaisi) {
+    const nom = (nomSaisi || "").trim().toLowerCase();
+    if (nom === "") return "";
+
+    const clubsTrouves = clubs.filter((club) => {
+      const nomClub = (club.nom || "").trim().toLowerCase();
+      return nomClub.includes(nom) || nom.includes(nomClub);
+    });
+
+    if (clubsTrouves.length === 0) return "";
+
+    return (
+      "Risque de doublon club : " +
+      clubsTrouves.map((c) => `${c.code} - ${c.nom}`).join(" / ")
+    );
+  }
+
+  function detecterDoublonContact(telephoneSaisi, mailSaisi) {
+    const tel = (telephoneSaisi || "").trim().toLowerCase();
+    const mail = (mailSaisi || "").trim().toLowerCase();
+
+    if (tel === "" && mail === "") return "";
+
+    const trouves = [];
+
+    allContacts.forEach((contact) => {
+      const telContact = (contact.telephone || "").trim().toLowerCase();
+      const mailContact = (contact.mail || "").trim().toLowerCase();
+
+      const telMatch = tel !== "" && telContact !== "" && tel === telContact;
+      const mailMatch = mail !== "" && mailContact !== "" && mail === mailContact;
+
+      if (telMatch || mailMatch) {
+        const club = clubs.find(
+          (c) => String(c.id || c.identifiant) === String(contact.club_id)
+        );
+
+        trouves.push(
+          `${club?.code || "?"} - ${club?.nom || "Club inconnu"} - ${
+            contact.nom || "Sans nom"
+          }`
+        );
+      }
+    });
+
+    if (trouves.length === 0) return "";
+
+    return "Risque de doublon contact : " + trouves.join(" / ");
+  }
+
+  function totalMagasins(magasins) {
+    return (magasins || []).reduce((total, mag) => {
+      return total + (Number(mag.taux) || 0);
+    }, 0);
+  }
+
+  function updateMagasinCreation(index, field, value) {
+    const copie = [...magasinsCreation];
+    copie[index] = { ...copie[index], [field]: value };
+    setMagasinsCreation(copie);
+  }
+
+  function addMagasinCreation() {
+    setMagasinsCreation([...magasinsCreation, { nom: "", taux: "0" }]);
+  }
+
+  function removeMagasinCreation(index) {
+    const ok = window.confirm("Voulez-vous vraiment supprimer ce magasin ?");
+    if (!ok) return;
+
+    const copie = magasinsCreation.filter((_, i) => i !== index);
+    setMagasinsCreation(copie.length > 0 ? copie : [{ nom: "", taux: "0" }]);
+  }
+
+  function updateMagasinDetail(index, field, value) {
+    const copie = [...magasinsClub];
+    copie[index] = { ...copie[index], [field]: value };
+    setMagasinsClub(copie);
+  }
+
+  function addMagasinDetail() {
+    setMagasinsClub([...magasinsClub, { nom: "", taux: "0" }]);
+  }
+
+  function removeMagasinDetail(index) {
+    const ok = window.confirm("Voulez-vous vraiment supprimer ce magasin ?");
+    if (!ok) return;
+
+    const copie = magasinsClub.filter((_, i) => i !== index);
+    setMagasinsClub(copie.length > 0 ? copie : []);
+  }
+
+  function nettoyerCSV(valeur) {
+    const texte = String(valeur ?? "");
+    return `"${texte.replace(/"/g, '""')}"`;
+  }
+
+  function exportClubsCSV() {
+    const entetes = [
+      "Code club",
+      "Nom du club",
+      "Ville",
+      "Sport pratiqué",
+      "Adherents",
+      "Potentiel TTC",
+      "Commercial",
+      "Contacts",
+      "Nb contacts",
+      "Nb actions"
+    ];
+
+    const lignes = clubsFiltres.map((club) => {
+      const contactsDuClub = allContacts.filter(
+        (c) => String(c.club_id) === String(club.id || club.identifiant)
+      );
+
+      const actionsDuClub = toutesActions.filter(
+        (a) => String(a.club_id) === String(club.id || club.identifiant)
+      );
+
+      const contactsTexte = contactsDuClub
+        .map((c) => `${c.nom || ""} / ${c.telephone || ""} / ${c.mail || ""}`)
+        .join(" | ");
+
+      return [
+        club.code || "",
+        club.nom || "",
+        club.ville || "",
+        club.sport || "",
+        club.adherents || "",
+        club.potentiel || "",
+        club.commercial || "",
+        contactsTexte,
+        contactsDuClub.length,
+        actionsDuClub.length
+      ];
+    });
+
+    const contenu = [
+      entetes.map(nettoyerCSV).join(";"),
+      ...lignes.map((ligne) => ligne.map(nettoyerCSV).join(";"))
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + contenu], {
+      type: "text/csv;charset=utf-8;"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement("a");
+    const dateTexte = new Date().toISOString().slice(0, 10);
+
+    lien.href = url;
+    lien.download = `crm-clubs-${dateTexte}.csv`;
+    document.body.appendChild(lien);
+    lien.click();
+    document.body.removeChild(lien);
+    URL.revokeObjectURL(url);
+  }
+
+  if (userConnected && screen === "planning") {
+    const planningUtilisateur =
+      commercialActif === "Toute l'équipe"
+        ? planning
+        : planning.filter((ligne) => ligne.commercial === commercialActif);
+
+    return (
+      <div style={stylePage}>
+        <h2>Planning semaine</h2>
+
+        <div
+          style={{
+            background: "white",
+            padding: 15,
+            borderRadius: 10,
+            marginBottom: 20
+          }}
+        >
+          <strong>Filtre commercial : </strong>
+          <select
+            style={{ padding: 10, marginLeft: 10 }}
+            value={filtreCommercial}
+            onChange={(e) => setFiltreCommercial(e.target.value)}
+          >
+            <option>Moi</option>
+            <option>Adrien</option>
+            <option>Hervé</option>
+            <option>Bruno</option>
+            <option>Arbresle</option>
+            <option>Confluence</option>
+            <option>Compta</option>
+            <option>Toute l'équipe</option>
+          </select>
+        </div>
+
+        {planningUtilisateur.map((ligne) => (
+          <div
+            key={ligne.id}
+            style={{
+              background: "white",
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 10
+            }}
+          >
+            <div><strong>{ligne.jour}</strong></div>
+            <div>{ligne.type}</div>
+            <div>{ligne.clubCode} - {ligne.clubNom}</div>
+            <div>{ligne.commentaire}</div>
+            <div><em>{ligne.commercial}</em></div>
+
+            <button
+              style={{
+                padding: 8,
+                marginTop: 10,
+                background: "#b71c1c",
+                color: "white",
+                border: "none",
+                borderRadius: 6
+              }}
+              onClick={async () => {
+                const ok = window.confirm(
+                  "Voulez-vous vraiment supprimer cette ligne du planning ?"
+                );
+                if (!ok) return;
+
+                const { error } = await supabase
+                  .from("planning")
+                  .delete()
+                  .eq("id", ligne.id);
+
+                if (error) {
+                  console.log("ERREUR DELETE PLANNING :", error);
+                  alert("Erreur lors de la suppression du planning");
+                  return;
+                }
+
+                setPlanning((prev) => prev.filter((p) => p.id !== ligne.id));
+              }}
+            >
+              Supprimer
+            </button>
+          </div>
+        ))}
+
+        <div
+          style={{
+            background: "white",
+            padding: 15,
+            borderRadius: 10,
+            marginTop: 20
+          }}
+        >
+          <h4>Ajouter au planning</h4>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={planningJour}
+              onChange={(e) => setPlanningJour(e.target.value)}
+            >
+              <option>Lundi</option>
+              <option>Mardi</option>
+              <option>Mercredi</option>
+              <option>Jeudi</option>
+              <option>Vendredi</option>
+              <option>Samedi</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={planningType}
+              onChange={(e) => setPlanningType(e.target.value)}
+            >
+              <option>Visite club</option>
+              <option>Prospection</option>
+              <option>Offre</option>
+              <option>Relance</option>
+              <option>Commande</option>
+              <option>Livraison</option>
+              <option>Animation club</option>
+              <option>Soirée privée</option>
+              <option>Suivi</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={clubSelected ? clubSelected.code : ""}
+              onChange={(e) => {
+                const clubTrouve = clubs.find((club) => club.code === e.target.value);
+                setClubSelected(clubTrouve || null);
+              }}
+            >
+              <option value="">Choisir un club</option>
+              {clubs.map((club) => (
+                <option key={club.code} value={club.code}>
+                  {club.code} - {club.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <input
+              placeholder="Commentaire"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={planningCommentaire}
+              onChange={(e) => setPlanningCommentaire(e.target.value)}
+            />
+          </div>
+
+          <button
+            style={{ padding: 10, marginRight: 10 }}
+            onClick={async () => {
+              if (!clubSelected) {
+                alert("Choisir un club");
+                return;
+              }
+
+              const nouvelleLigne = {
+                commercial: userConnected,
+                jour: planningJour,
+                type: planningType,
+                clubCode: clubSelected.code,
+                clubNom: clubSelected.nom,
+                club_id: clubSelected.id || clubSelected.identifiant,
+                commentaire: planningCommentaire
+              };
+
+              const { data, error } = await supabase
+                .from("planning")
+                .insert([nouvelleLigne])
+                .select()
+                .single();
+
+              if (error) {
+                console.log("ERREUR INSERT PLANNING :", error);
+                alert("Erreur lors de l'enregistrement du planning");
+                return;
+              }
+
+              setPlanning((prev) => [data, ...prev]);
+
+              setPlanningJour("Lundi");
+              setPlanningType("Visite club");
+              setPlanningCommentaire("");
+            }}
+          >
+            Ajouter au planning
+          </button>
+
+          <button
+            style={{ padding: 10 }}
+            onClick={() => setScreen("dashboard")}
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+   if (userConnected && screen === "detailClub" && clubSelected) {
+    const contacts = contactsClub || [];
+    const actions = actionsClub || [];
+    const historiques = historiquesClub || [];
+const pieces = piecesClub || [];
+    const magasins = magasinsClub;
+    const totalMagDetail = totalMagasins(magasins);
+
+    return (
+      <div style={stylePage}>
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h2>Détail club</h2>
+          <p><strong>Code :</strong> {clubSelected.code}</p>
+          <p><strong>Commercial :</strong> {clubSelected.commercial}</p>
+
+          <div style={{ marginTop: 10 }}>
+            <input
+              placeholder="Nom du club"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={clubSelected.nom || ""}
+              onChange={(e) =>
+                setClubSelected({ ...clubSelected, nom: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Ville"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={clubSelected.ville || ""}
+              onChange={(e) =>
+                setClubSelected({ ...clubSelected, ville: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={clubSelected.sport || ""}
+              onChange={(e) =>
+                setClubSelected({ ...clubSelected, sport: e.target.value })
+              }
+            >
+              <option value="">Choisir un sport</option>
+              {sportsOptions.map((sport) => (
+                <option key={sport} value={sport}>
+                  {sport}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ margin: 10 }}>
+            <input
+              placeholder="Ajouter un nouveau sport"
+              style={{ padding: 10, width: 250, marginRight: 10 }}
+              value={nouveauSportClub}
+              onChange={(e) => setNouveauSportClub(e.target.value)}
+            />
+            <button
+              style={{ padding: 10 }}
+              onClick={() => {
+                const valeur = ajouterSportOption(nouveauSportClub);
+                if (valeur !== "") {
+                  setClubSelected({ ...clubSelected, sport: valeur });
+                  setNouveauSportClub("");
+                }
+              }}
+            >
+              Ajouter ce sport
+            </button>
+          </div>
+
+          <div>
+            <input
+              placeholder="Nombre d’adhérents"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={clubSelected.adherents || ""}
+              onChange={(e) =>
+                setClubSelected({ ...clubSelected, adherents: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Potentiel"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={clubSelected.potentiel || ""}
+              onChange={(e) =>
+                setClubSelected({ ...clubSelected, potentiel: e.target.value })
+              }
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Rattachement magasins</h3>
+
+          {magasins.map((mag, index) => (
+            <div
+              key={index}
+              style={{
+                background: "#fafafa",
+                padding: 10,
+                margin: 10,
+                border: "1px solid #ddd",
+                borderRadius: 8
+              }}
+            >
+              <input
+                placeholder="Nom du magasin"
+                style={{ padding: 10, marginRight: 10, width: 180 }}
+                value={mag.nom}
+                onChange={(e) =>
+                  updateMagasinDetail(index, "nom", e.target.value)
+                }
+              />
+
+              <input
+                type="number"
+                placeholder="%"
+                style={{ padding: 10, marginRight: 10, width: 90 }}
+                value={mag.taux}
+                onChange={(e) =>
+                  updateMagasinDetail(index, "taux", e.target.value)
+                }
+              />
+
+              <button
+                style={{
+                  padding: 10,
+                  background: "#b71c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6
+                }}
+                onClick={() => removeMagasinDetail(index)}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+
+          <button
+            style={{ padding: 10, margin: 10 }}
+            onClick={addMagasinDetail}
+          >
+            + Ajouter un magasin
+          </button>
+
+          <div style={{ margin: 10, padding: 10, background: "#fff" }}>
+            <strong>Total magasins : {totalMagDetail}%</strong>
+            {totalMagDetail !== 100 && (
+              <div style={{ color: "#b71c1c", marginTop: 5 }}>
+                Attention : le total doit idéalement être de 100%.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Contacts</h3>
+
+          {contacts.map((contact, index) => (
+            <div
+              key={contact.id || index}
+              style={{
+                border: "1px solid #ccc",
+                padding: 10,
+                margin: 10,
+                background: "#f9f9f9",
+                borderRadius: 8
+              }}
+            >
+              <div><strong>{contact.nom}</strong></div>
+              <div>{contact.fonction}</div>
+              <div>{contact.telephone}</div>
+              <div>{contact.mail}</div>
+
+              <button
+                style={{
+                  padding: 8,
+                  marginTop: 10,
+                  background: "#b71c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6
+                }}
+                onClick={() => supprimerContact(contact.id)}
+              >
+                Supprimer ce contact
+              </button>
+            </div>
+          ))}
+
+          <h4>Ajouter un contact</h4>
+
+          {alerteDoublonContact !== "" && (
+            <div
+              style={{
+                background: "#fff3cd",
+                padding: 10,
+                margin: 10,
+                border: "1px solid #ffec99"
+              }}
+            >
+              {alerteDoublonContact}
+            </div>
+          )}
+
+          <div>
+            <input
+              placeholder="Nom"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={contactNom}
+              onChange={(e) => setContactNom(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Fonction"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={contactFonction}
+              onChange={(e) => setContactFonction(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Téléphone"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={contactTelephone}
+              onChange={(e) => {
+                const value = e.target.value;
+                setContactTelephone(value);
+                setAlerteDoublonContact(
+                  detecterDoublonContact(value, contactMail)
+                );
+              }}
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Mail"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={contactMail}
+              onChange={(e) => {
+                const value = e.target.value;
+                setContactMail(value);
+                setAlerteDoublonContact(
+                  detecterDoublonContact(contactTelephone, value)
+                );
+              }}
+            />
+          </div>
+
+          <button
+            style={{ padding: 10, marginTop: 10, marginRight: 10 }}
+            onClick={async () => {
+              const clubId = clubSelected.id || clubSelected.identifiant;
+
+              if (!clubId) {
+                alert("Identifiant du club introuvable");
+                return;
+              }
+
+              const nouveauContact = {
+                club_id: clubId,
+                nom: contactNom,
+                fonction: contactFonction,
+                telephone: contactTelephone,
+                mail: contactMail
+              };
+
+              const { data, error } = await supabase
+                .from("contacts")
+                .insert([nouveauContact])
+                .select()
+                .single();
+
+              if (error) {
+                console.log("ERREUR INSERT CONTACT :", error);
+                alert("Erreur lors de l'enregistrement du contact");
+                return;
+              }
+
+              setContactsClub((prev) => [...prev, data]);
+              setAllContacts((prev) => [...prev, data]);
+
+              setContactNom("");
+              setContactFonction("");
+              setContactTelephone("");
+              setContactMail("");
+              setAlerteDoublonContact("");
+            }}
+          >
+            Ajouter contact
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Actions commerciales</h3>
+
+          {actions.map((action, index) => (
+            <div
+              key={action.id || index}
+              style={{
+                border: "1px solid #ddd",
+                padding: 10,
+                margin: 10,
+                background: "#eef6ff",
+                borderRadius: 8
+              }}
+            >
+              <div><strong>{action.type}</strong></div>
+              <div>{action.date}</div>
+              {action.montantTTC !== undefined && action.montantTTC !== "" && (
+                <div><strong>Montant TTC :</strong> {action.montantTTC} €</div>
+              )}
+              <div>{action.commentaire}</div>
+
+              <button
+                style={{
+                  padding: 8,
+                  marginTop: 10,
+                  background: "#b71c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6
+                }}
+                onClick={async () => {
+                  const ok = window.confirm(
+                    "Voulez-vous vraiment supprimer cette action ?"
+                  );
+                  if (!ok) return;
+
+                  const { error } = await supabase
+                    .from("actions")
+                    .delete()
+                    .eq("id", action.id);
+
+                  if (error) {
+                    console.log("ERREUR DELETE ACTION :", error);
+                    alert("Erreur lors de la suppression de l'action");
+                    return;
+                  }
+
+                  setActionsClub((prev) => prev.filter((a) => a.id !== action.id));
+                  setToutesActions((prev) => prev.filter((a) => a.id !== action.id));
+                }}
+              >
+                Supprimer cette action
+              </button>
+            </div>
+          ))}
+
+          <h4>Ajouter une action</h4>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={actionType}
+              onChange={(e) => setActionType(e.target.value)}
+            >
+              <option>Visite club</option>
+              <option>Prospection</option>
+              <option>Offre</option>
+              <option>Relance</option>
+              <option>Commande</option>
+              <option>Livraison</option>
+              <option>Facturé</option>
+              <option>Payé</option>
+              <option>Animation club</option>
+              <option>Soirée privée</option>
+              <option>Suivi</option>
+            </select>
+          </div>
+
+          <div>
+            <input
+              type="date"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={actionDate}
+              onChange={(e) => setActionDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <input
+              placeholder="Commentaire"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={actionCommentaire}
+              onChange={(e) => setActionCommentaire(e.target.value)}
+            />
+          </div>
+
+          {["Livraison", "Facturé", "Payé"].includes(actionType) && (
+            <div>
+              <input
+                type="number"
+                placeholder="Montant TTC"
+                style={{ padding: 10, margin: 10, width: 250 }}
+                value={actionMontantTTC}
+                onChange={(e) => setActionMontantTTC(e.target.value)}
+              />
+            </div>
+          )}
+
+          <button
+            style={{ padding: 10, marginTop: 10, marginRight: 10 }}
+            onClick={async () => {
+              const clubId = clubSelected.id || clubSelected.identifiant;
+
+              if (!clubId) {
+                alert("Identifiant du club introuvable");
+                return;
+              }
+
+              const nouvelleAction = {
+                club_id: clubId,
+                type: actionType,
+                date: actionDate,
+                commentaire: actionCommentaire,
+                montantTTC: ["Livraison", "Facturé", "Payé"].includes(actionType)
+                  ? actionMontantTTC
+                  : null
+              };
+
+              const { data, error } = await supabase
+                .from("actions")
+                .insert([nouvelleAction])
+                .select()
+                .single();
+
+              if (error) {
+                console.log("ERREUR INSERT ACTION :", error);
+                alert("Erreur lors de l'enregistrement de l'action");
+                return;
+              }
+
+              setActionsClub((prev) => [data, ...prev]);
+              setToutesActions((prev) => [data, ...prev]);
+
+              setActionType("Visite club");
+              setActionDate(dateDuJourInput);
+              setActionCommentaire("");
+              setActionMontantTTC("");
+            }}
+          >
+            Ajouter action
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Historique</h3>
+
+          {historiques.map((ligne, index) => (
+            <div
+              key={ligne.id || index}
+              style={{
+                border: "1px solid #ddd",
+                padding: 10,
+                margin: 10,
+                background: "#f6f2ff",
+                borderRadius: 8
+              }}
+            >
+              <div><strong>{ligne.type}</strong></div>
+              <div>{ligne.date}</div>
+              <div>{ligne.commentaire}</div>
+
+              <button
+                style={{
+                  padding: 8,
+                  marginTop: 10,
+                  background: "#b71c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6
+                }}
+                onClick={async () => {
+                  const ok = window.confirm(
+                    "Voulez-vous vraiment supprimer cet élément d’historique ?"
+                  );
+                  if (!ok) return;
+
+                  const { error } = await supabase
+                    .from("historiques")
+                    .delete()
+                    .eq("id", ligne.id);
+
+                  if (error) {
+                    console.log("ERREUR DELETE HISTORIQUE :", error);
+                    alert("Erreur lors de la suppression de l'historique");
+                    return;
+                  }
+
+                  setHistoriquesClub((prev) => prev.filter((h) => h.id !== ligne.id));
+                }}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+
+          <h4>Ajouter un élément d’historique</h4>
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={historiqueType}
+              onChange={(e) => setHistoriqueType(e.target.value)}
+            >
+              {historiqueTypeOptions.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ margin: 10 }}>
+            <input
+              placeholder="Ajouter un nouveau type"
+              style={{ padding: 10, width: 250, marginRight: 10 }}
+              value={historiqueNouveauType}
+              onChange={(e) => setHistoriqueNouveauType(e.target.value)}
+            />
+            <button
+              style={{ padding: 10 }}
+              onClick={() => {
+                const valeur = ajouterHistoriqueTypeOption(historiqueNouveauType);
+                if (valeur !== "") {
+                  setHistoriqueType(valeur);
+                  setHistoriqueNouveauType("");
+                }
+              }}
+            >
+              Ajouter ce type
+            </button>
+          </div>
+
+          <div>
+            <input
+              type="month"
+              style={{ padding: 10, margin: 10, width: 250 }}
+              value={historiqueDate}
+              onChange={(e) => setHistoriqueDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <textarea
+              placeholder="Commentaire"
+              style={{ padding: 10, margin: 10, width: 250, minHeight: 90 }}
+              value={historiqueCommentaire}
+              onChange={(e) => setHistoriqueCommentaire(e.target.value)}
+            />
+          </div>
+
+          <button
+            style={{ padding: 10, marginTop: 10, marginRight: 10 }}
+            onClick={async () => {
+              const clubId = clubSelected.id || clubSelected.identifiant;
+
+              if (!clubId) {
+                alert("Identifiant du club introuvable");
+                return;
+              }
+
+              const nouvelleLigne = {
+                club_id: clubId,
+                type: historiqueType,
+                date: historiqueDate,
+                commentaire: historiqueCommentaire
+              };
+
+              const { data, error } = await supabase
+                .from("historiques")
+                .insert([nouvelleLigne])
+                .select()
+                .single();
+
+              if (error) {
+                console.log("ERREUR INSERT HISTORIQUE :", error);
+                alert("Erreur lors de l'enregistrement de l'historique");
+                return;
+              }
+
+              setHistoriquesClub((prev) => [data, ...prev]);
+
+              setHistoriqueType(historiqueTypeOptions[0] || "Concurrence");
+              setHistoriqueDate(moisDuJourInput);
+              setHistoriqueCommentaire("");
+            }}
+          >
+            Ajouter historique
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Pièces jointes</h3>
+
+{pieces.map((p, index) => (
+  <div
+    key={p.id || index}
+    style={{
+      border: "1px solid #ccc",
+      padding: 10,
+      margin: 10,
+      background: "#fff",
+      borderRadius: 8
+    }}
+  >
+    <div><strong>{p.nom}</strong></div>
+
+    {p.type && p.type.startsWith("image") && (
+      <div style={{ marginTop: 8 }}>
+        <img
+          src={p.url}
+          alt={p.nom}
+          style={{ width: 120, marginTop: 5, cursor: "pointer" }}
+          onClick={() => window.open(p.url, "_blank")}
+        />
+
+        <div style={{ marginTop: 10 }}>
+          <button
+            style={{ padding: 8, marginRight: 10 }}
+            onClick={() => window.open(p.url, "_blank")}
+          >
+            Ouvrir en grand
+          </button>
+
+          <button
+            style={{ padding: 8, marginRight: 10 }}
+            onClick={() => {
+              const fenetre = window.open(p.url, "_blank");
+              if (fenetre) {
+                fenetre.onload = () => fenetre.print();
+              }
+            }}
+          >
+            Imprimer
+          </button>
+        </div>
+      </div>
+    )}
+
+    {p.type === "application/pdf" && (
+      <div style={{ marginTop: 8 }}>
+        <a href={p.url} target="_blank" rel="noreferrer">
+          Ouvrir le PDF
+        </a>
+
+        <div style={{ marginTop: 10 }}>
+          <button
+            style={{ padding: 8, marginRight: 10 }}
+            onClick={() => window.open(p.url, "_blank")}
+          >
+            Ouvrir
+          </button>
+
+          <button
+            style={{ padding: 8, marginRight: 10 }}
+            onClick={() => {
+              const fenetre = window.open(p.url, "_blank");
+              if (fenetre) {
+                fenetre.onload = () => fenetre.print();
+              }
+            }}
+          >
+            Imprimer
+          </button>
+        </div>
+      </div>
+    )}
+
+    <button
+      style={{
+        padding: 8,
+        marginTop: 10,
+        background: "#b71c1c",
+        color: "white",
+        border: "none",
+        borderRadius: 6
+      }}
+      onClick={async () => {
+        const ok = window.confirm(
+          "Voulez-vous vraiment supprimer cette pièce jointe ?"
+        );
+        if (!ok) return;
+
+        if (p.chemin) {
+          const { error: storageError } = await supabase.storage
+            .from("pieces-clubs")
+            .remove([p.chemin]);
+
+          if (storageError) {
+            console.log("ERREUR DELETE STORAGE :", storageError);
+          }
+        }
+
+        const { error } = await supabase
+          .from("pieces_jointes")
+          .delete()
+          .eq("id", p.id);
+
+        if (error) {
+          console.log("ERREUR DELETE PIECE :", error);
+          alert("Erreur lors de la suppression de la pièce jointe");
+          return;
+        }
+
+        setPiecesClub((prev) => prev.filter((piece) => piece.id !== p.id));
+      }}
+    >
+      Supprimer cette pièce jointe
+    </button>
+  </div>
+))}
+<div style={{ margin: 10 }}>
+  <div style={{ marginBottom: 10 }}>
+    <strong>Choisir un fichier</strong>
+  </div>
+  <input
+    type="file"
+    accept="image/*,.pdf"
+    onChange={(e) => {
+      const file = e.target.files[0];
+      chargerPiece(file);
+    }}
+  />
+</div>
+
+<div style={{ margin: 10 }}>
+  <div style={{ marginBottom: 10 }}>
+    <strong>Prendre une photo</strong>
+  </div>
+  <input
+    type="file"
+    accept="image/*"
+    capture="environment"
+    onChange={(e) => {
+      const file = e.target.files[0];
+      chargerPiece(file);
+    }}
+  />
+</div>
+
+{pieceNom !== "" && (
+  <div
+    style={{
+      margin: 10,
+      padding: 10,
+      background: "#f5f5f5",
+      borderRadius: 8
+    }}
+  >
+    <div>
+      Fichier sélectionné : <strong>{pieceNom}</strong>
+    </div>
+
+    <button
+      style={{ padding: 10, marginTop: 10, marginRight: 10 }}
+      onClick={async () => {
+        const clubId = clubSelected.id || clubSelected.identifiant;
+
+        if (!clubId) {
+          alert("Identifiant du club introuvable");
+          return;
+        }
+
+        if (!pieceData || !pieceNom) {
+          alert("Aucun fichier sélectionné");
+          return;
+        }
+
+        const response = await fetch(pieceData);
+        const blob = await response.blob();
+
+        const nomNettoye = pieceNom.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const chemin = `${clubId}/${Date.now()}-${nomNettoye}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("pieces-clubs")
+          .upload(chemin, blob, {
+            contentType: pieceType,
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.log("ERREUR UPLOAD PIECE :", uploadError);
+          alert("Erreur lors de l'envoi du fichier");
+          return;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from("pieces-clubs")
+          .getPublicUrl(chemin);
+
+        const nouvellePiece = {
+          club_id: clubId,
+          nom: pieceNom,
+          type: pieceType,
+          chemin: chemin,
+          url: publicData.publicUrl
+        };
+
+        const { data, error } = await supabase
+          .from("pieces_jointes")
+          .insert([nouvellePiece])
+          .select()
+          .single();
+
+        if (error) {
+          console.log("ERREUR INSERT PIECE :", error);
+          alert("Erreur lors de l'enregistrement de la pièce jointe");
+          return;
+        }
+
+        setPiecesClub((prev) => [data, ...prev]);
+
+        setPieceNom("");
+        setPieceType("");
+        setPieceData("");
+      }}
+    >
+      Ajouter pièce jointe
+    </button>
+
+    <button
+      style={{ padding: 10, marginTop: 10 }}
+      onClick={() => {
+        setPieceNom("");
+        setPieceType("");
+        setPieceData("");
+      }}
+    >
+      Annuler
+    </button>
+  </div>
+)}
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <button
+            style={{ padding: 10, marginRight: 10 }}
+            onClick={async () => {
+              const clubId = clubSelected.id || clubSelected.identifiant;
+
+              const { error } = await supabase
+                .from("clubs")
+                .update({
+                  nom: clubSelected.nom,
+                  ville: clubSelected.ville,
+                  sport: clubSelected.sport,
+                  adherents: clubSelected.adherents,
+                  potentiel: clubSelected.potentiel
+                })
+                .eq("id", clubId);
+
+              if (error) {
+                console.log("ERREUR UPDATE CLUB :", error);
+                alert("Erreur lors de la mise à jour du club");
+                return;
+              }
+
+              await chargerClubs();
+              setScreen("dashboard");
+
+              setPieceNom("");
+              setPieceType("");
+              setPieceData("");
+            }}
+          >
+            Enregistrer modifications
+          </button>
+
+          <button
+            style={{
+              padding: 10,
+              marginRight: 10,
+              background: "#b71c1c",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
+            onClick={async () => {
+              const ok = window.confirm(
+                "Voulez-vous vraiment supprimer ce club ?"
+              );
+              if (!ok) return;
+
+              const clubId = clubSelected.id || clubSelected.identifiant;
+
+              const { error } = await supabase
+                .from("clubs")
+                .delete()
+                .eq("id", clubId);
+
+              if (error) {
+                console.log("ERREUR DELETE CLUB :", error);
+                alert("Erreur lors de la suppression du club");
+                return;
+              }
+
+              await chargerClubs();
+              await chargerTousContacts();
+              await chargerToutesActions();
+
+              setClubSelected(null);
+              setScreen("dashboard");
+
+              setPieceNom("");
+              setPieceType("");
+              setPieceData("");
+            }}
+          >
+            Supprimer ce club
+          </button>
+
+          <button
+            style={{ padding: 10 }}
+            onClick={() => {
+              setScreen("dashboard");
+              setPieceNom("");
+              setPieceType("");
+              setPieceData("");
+              setAlerteDoublonContact("");
+            }}
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (userConnected && screen === "club") {
+    const totalMagCreation = totalMagasins(magasinsCreation);
+
+    return (
+      <div style={stylePage}>
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <h2>Créer un club</h2>
+
+          <p>Code club : {prochainCodeClub}</p>
+          <p>Commercial : {userConnected}</p>
+
+          {alerteDoublonClub !== "" && (
+            <div
+              style={{
+                background: "#fff3cd",
+                padding: 10,
+                margin: 10,
+                border: "1px solid #ffec99"
+              }}
+            >
+              {alerteDoublonClub}
+            </div>
+          )}
+
+          <input
+            placeholder="Nom du club"
+            style={{ padding: 10, margin: 10 }}
+            value={nomClub}
+            onChange={(e) => {
+              const value = e.target.value;
+              setNomClub(value);
+              setAlerteDoublonClub(detecterDoublonClub(value));
+            }}
+          />
+
+          <input
+            placeholder="Ville"
+            style={{ padding: 10, margin: 10 }}
+            value={villeClub}
+            onChange={(e) => setVilleClub(e.target.value)}
+          />
+
+          <div>
+            <select
+              style={{ padding: 10, margin: 10, width: 272 }}
+              value={sportClub}
+              onChange={(e) => setSportClub(e.target.value)}
+            >
+              <option value="">Choisir un sport</option>
+              {sportsOptions.map((sport) => (
+                <option key={sport} value={sport}>
+                  {sport}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ margin: 10 }}>
+            <input
+              placeholder="Ajouter un nouveau sport"
+              style={{ padding: 10, width: 250, marginRight: 10 }}
+              value={nouveauSportClub}
+              onChange={(e) => setNouveauSportClub(e.target.value)}
+            />
+            <button
+              style={{ padding: 10 }}
+              onClick={() => {
+                const valeur = ajouterSportOption(nouveauSportClub);
+                if (valeur !== "") {
+                  setSportClub(valeur);
+                  setNouveauSportClub("");
+                }
+              }}
+            >
+              Ajouter ce sport
+            </button>
+          </div>
+
+          <input
+            placeholder="Nombre d’adhérents"
+            style={{ padding: 10, margin: 10 }}
+            value={adherentsClub}
+            onChange={(e) => setAdherentsClub(e.target.value)}
+          />
+
+          <input
+            placeholder="Potentiel TTC"
+            style={{ padding: 10, margin: 10 }}
+            value={potentielClub}
+            onChange={(e) => setPotentielClub(e.target.value)}
+          />
+
+          <h3 style={{ marginTop: 20 }}>Rattachement magasins</h3>
+
+          {magasinsCreation.map((mag, index) => (
+            <div
+              key={index}
+              style={{
+                background: "#fafafa",
+                padding: 10,
+                margin: 10,
+                border: "1px solid #ddd",
+                borderRadius: 8
+              }}
+            >
+              <input
+                placeholder="Nom du magasin"
+                style={{ padding: 10, marginRight: 10, width: 180 }}
+                value={mag.nom}
+                onChange={(e) =>
+                  updateMagasinCreation(index, "nom", e.target.value)
+                }
+              />
+
+              <input
+                type="number"
+                placeholder="%"
+                style={{ padding: 10, marginRight: 10, width: 90 }}
+                value={mag.taux}
+                onChange={(e) =>
+                  updateMagasinCreation(index, "taux", e.target.value)
+                }
+              />
+
+              <button
+                style={{
+                  padding: 10,
+                  background: "#b71c1c",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6
+                }}
+                onClick={() => removeMagasinCreation(index)}
+              >
+                Supprimer
+              </button>
+            </div>
+          ))}
+
+          <button
+            style={{ padding: 10, margin: 10 }}
+            onClick={addMagasinCreation}
+          >
+            + Ajouter un magasin
+          </button>
+
+          <div style={{ margin: 10, padding: 10, background: "#fff" }}>
+            <strong>Total magasins : {totalMagCreation}%</strong>
+            {totalMagCreation !== 100 && (
+              <div style={{ color: "#b71c1c", marginTop: 5 }}>
+                Attention : le total doit idéalement être de 100%.
+              </div>
+            )}
+          </div>
+
+          <br />
+
+          <button
+            style={{ padding: 10 }}
+            onClick={async () => {
+              const nouveauClub = {
+                code: prochainCodeClub,
+                nom: nomClub,
+                ville: villeClub,
+                sport: sportClub,
+                adherents: adherentsClub,
+                potentiel: potentielClub,
+                commercial: userConnected
+              };
+
+              const { data: clubCree, error } = await supabase
+                .from("clubs")
+                .insert([nouveauClub])
+                .select()
+                .single();
+
+              if (error) {
+                console.log("ERROR INSERT CLUB :", error);
+                alert("Erreur lors de l'enregistrement du club");
+                return;
+              }
+
+              const clubId = clubCree?.id || clubCree?.identifiant;
+
+              if (!clubCree || !clubId) {
+                console.log("CLUB CREE :", clubCree);
+                alert("Club créé mais identifiant introuvable");
+                return;
+              }
+
+              const magasinsAInserer = (magasinsCreation || []).map((mag) => ({
+                club_id: clubId,
+                nom: mag.nom,
+                taux: Number(mag.taux) || 0
+              }));
+
+              if (magasinsAInserer.length > 0) {
+                const { error: errorMagasins } = await supabase
+                  .from("magasins_club")
+                  .insert(magasinsAInserer);
+
+                if (errorMagasins) {
+                  console.log("ERROR INSERT MAGASINS :", errorMagasins);
+                  alert(
+                    "Club créé, mais erreur lors de l'enregistrement des magasins"
+                  );
+                  return;
+                }
+              }
+
+              await chargerClubs();
+
+              setNomClub("");
+              setVilleClub("");
+              setSportClub("");
+              setNouveauSportClub("");
+              setAdherentsClub("");
+              setPotentielClub("");
+              setMagasinsCreation([{ nom: "L’Arbresle", taux: "100" }]);
+              setAlerteDoublonClub("");
+
+              setScreen("dashboard");
+            }}
+          >
+            Enregistrer
+          </button>
+
+          <button
+            style={{ padding: 10, marginLeft: 10 }}
+            onClick={() => {
+              setScreen("dashboard");
+              setAlerteDoublonClub("");
+            }}
+          >
+            Retour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (userConnected) {
+    const planningUtilisateur =
+      commercialActif === "Toute l'équipe"
+        ? planning
+        : planning.filter((ligne) => ligne.commercial === commercialActif);
+
+    const totalAdh = clubsFiltres.reduce(
+      (sum, c) => sum + Number(c.adherents || 0),
+      0
+    );
+
+    return (
+      <div style={stylePage}>
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 20,
+            flexWrap: "wrap"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+            <img
+              src={logo}
+              alt="Logo"
+              style={{
+                width: 60,
+                height: "auto",
+                display: "block"
+              }}
+            />
+            <div>
+              <h2 style={{ margin: 0 }}>CRM Clubs</h2>
+              <div>
+                Commercial connecté : <strong>{userConnected}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <button
+              style={{ padding: 10, marginRight: 10 }}
+              onClick={() => setScreen("club")}
+            >
+              + Nouveau club
+            </button>
+
+            <button
+              style={{ padding: 10, marginRight: 10 }}
+              onClick={async () => {
+                await chargerPlanning();
+                setScreen("planning");
+              }}
+            >
+              Planning
+            </button>
+
+            <button
+              style={{ padding: 10 }}
+              onClick={exportClubsCSV}
+            >
+              Export Excel
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{ display: "flex", gap: 20, marginBottom: 20, flexWrap: "wrap" }}
+        >
+          <div
+            style={{
+              flex: 1,
+              minWidth: 180,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>Nombre de clubs</div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalClubs}</div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 180,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>Total adhérents</div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalAdh}</div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 180,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>
+              Potentiel total TTC
+            </div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>
+              {potentielTotal} €
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 320,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>
+              Actions / Offres / Commandes / Livraisons / Facturations / Relances
+            </div>
+            <div style={{ fontSize: 20, fontWeight: "bold" }}>
+              {totalActions} / {totalOffres} / {totalCommandes} / {totalLivraisons} / {totalFacturations} / {totalRelances}
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 220,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>Livraisons TTC</div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>
+              {totalLivraisonsTTC} €
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 220,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>
+              Montant facturé TTC
+            </div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>
+              {totalFacturesTTC} €
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 220,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>Montant payé TTC</div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>
+              {totalPayesTTC} €
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 240,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#777" }}>
+              Solde restant à encaisser
+            </div>
+            <div style={{ fontSize: 26, fontWeight: "bold" }}>
+              {soldeRestantEncaisser} €
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            padding: 20,
+            borderRadius: 12,
+            marginBottom: 20
+          }}
+        >
+          <h3>Filtres et recherche</h3>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input
+              style={{ padding: 10, width: 320 }}
+              placeholder="Code club, nom club, ville, sport, nom contact, téléphone, mail"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+            />
+
+            <select
+              style={{ padding: 10, width: 220 }}
+              value={filtreCommercial}
+              onChange={(e) => setFiltreCommercial(e.target.value)}
+            >
+              <option>Moi</option>
+              <option>Adrien</option>
+              <option>Hervé</option>
+              <option>Bruno</option>
+              <option>Arbresle</option>
+              <option>Confluence</option>
+              <option>Compta</option>
+              <option>Toute l'équipe</option>
+            </select>
+
+            <select
+              style={{ padding: 10, width: 220 }}
+              value={filtreSport}
+              onChange={(e) => setFiltreSport(e.target.value)}
+            >
+              <option>Tous les sports</option>
+              {sportsOptions.map((sport) => (
+                <option key={sport} value={sport}>
+                  {sport}
+                </option>
+              ))}
+            </select>
+
+            <select
+              style={{ padding: 10, width: 240 }}
+              value={filtreFinancier}
+              onChange={(e) => setFiltreFinancier(e.target.value)}
+            >
+              <option>Tous</option>
+              <option>Livré non facturé</option>
+              <option>Facturé non payé</option>
+            </select>
+
+            <select
+              style={{ padding: 10, width: 220 }}
+              value={filtrePeriode}
+              onChange={(e) => setFiltrePeriode(e.target.value)}
+            >
+<option>Toutes périodes</option>
+<option>Semaine</option>
+<option>Mois</option>
+<option>Depuis telle date</option>
+            </select>
+
+            {filtrePeriode === "Depuis telle date" && (
+              <input
+                type="date"
+                style={{ padding: 10 }}
+                value={dateDepuis}
+                onChange={(e) => setDateDepuis(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}
+        >
+          <div
+            style={{
+              flex: 2,
+              minWidth: 420,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <h3>Liste des clubs</h3>
+
+            {clubsFiltres.map((club, index) => {
+              const { totalLivre, totalFacture, totalPaye } = getTotauxClub(club);
+              const badgeLivreNonFacture = totalLivre > totalFacture;
+              const badgeFactureNonPaye = totalFacture > totalPaye;
+
+              return (
+                <div
+                  key={club.id || index}
+                  style={{
+                    borderBottom: "1px solid #eee",
+                    padding: 12,
+                    cursor: "pointer"
+                  }}
+                  onClick={async () => {
+                    await chargerDetailClub(club);
+                    setScreen("detailClub");
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap"
+                    }}
+                  >
+                    <strong>{club.code}</strong>
+                    <span>
+                      — {club.nom} — {club.ville} — {club.sport || "Sans sport"} —{" "}
+                      {club.adherents || 0} adh — {club.potentiel} € —{" "}
+                      {club.commercial}
+                    </span>
+
+                    {badgeLivreNonFacture && (
+                      <span
+                        style={{
+                          background: "#ff9800",
+                          color: "white",
+                          padding: "4px 8px",
+                          borderRadius: 12,
+                          fontSize: 12,
+                          fontWeight: "bold"
+                        }}
+                      >
+                        🟠 Livré non facturé
+                      </span>
+                    )}
+
+                    {badgeFactureNonPaye && (
+                      <span
+                        style={{
+                          background: "#d32f2f",
+                          color: "white",
+                          padding: "4px 8px",
+                          borderRadius: 12,
+                          fontSize: 12,
+                          fontWeight: "bold"
+                        }}
+                      >
+                        🔴 Facturé non payé
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {clubsFiltres.length === 0 && (
+              <div style={{ padding: 12 }}>Aucun club trouvé.</div>
+            )}
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 320,
+              background: "white",
+              padding: 20,
+              borderRadius: 12
+            }}
+          >
+            <h3>Planning semaine</h3>
+
+            {planningUtilisateur.slice(0, 5).map((ligne) => (
+              <div
+                key={ligne.id}
+                style={{
+                  border: "1px solid #ddd",
+                  padding: 10,
+                  marginBottom: 10,
+                  background: "#fffbe6",
+                  borderRadius: 8
+                }}
+              >
+                <div><strong>{ligne.jour}</strong> - {ligne.type}</div>
+                <div>{ligne.clubCode} - {ligne.clubNom}</div>
+                <div>{ligne.commentaire}</div>
+                <div><em>{ligne.commercial}</em></div>
+              </div>
+            ))}
+
+            {planningUtilisateur.length === 0 && (
+              <div>Aucune ligne de planning.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#f2f2f2"
+      }}
+    >
+      <div
+        style={{
+          background: "white",
+          padding: 30,
+          borderRadius: 10,
+          width: 300,
+          textAlign: "center"
+        }}
+      >
+        <img
+          src={logo}
+          alt="Logo"
+          style={{
+            width: "33%",
+            display: "block",
+            margin: "0 auto 20px auto"
+          }}
+        />
+
+        <h2>CRM CLUBS</h2>
+
+        <input
+          style={{ width: "100%", padding: 10, marginTop: 10 }}
+          placeholder="Utilisateur"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+
+        <input
+          type="password"
+          style={{ width: "100%", padding: 10, marginTop: 10 }}
+          placeholder="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <button
+          onClick={handleLogin}
+          style={{
+            marginTop: 20,
+            width: "100%",
+            padding: 12,
+            background: "#333",
+            color: "white",
+            border: "none",
+            borderRadius: 6
+          }}
+        >
+          SE CONNECTER
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default App; 
