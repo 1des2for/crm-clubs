@@ -2136,15 +2136,18 @@ const pieces = piecesClub || [];
           <button
             style={{ padding: 10 }}
             onClick={async () => {
-              const nouveauClub = {
-                code: prochainCodeClub,
-                nom: nomClub,
-                ville: villeClub,
-                sport: sportClub,
-                adherents: adherentsClub,
-                potentiel: potentielClub,
-                commercial: userConnected
-              };
+const nouveauClub = {
+  code: prochainCodeClub,
+  nom: nomClub,
+  ville: villeClub,
+  sport: sportClub || "",
+  adherents: adherentsClub ? Number(adherentsClub) : 0,
+  potentiel: potentielClub ? Number(potentielClub) : 0,
+  commercial:
+    typeof userConnected === "string"
+      ? userConnected
+      : userConnected?.nom || ""
+};
 
               const { data: clubCree, error } = await supabase
                 .from("clubs")
@@ -2154,7 +2157,7 @@ const pieces = piecesClub || [];
 
               if (error) {
                 console.log("ERROR INSERT CLUB :", error);
-                alert("Erreur lors de l'enregistrement du club");
+                alert("Erreur lors de l'enregistrement du club : " + error.message);
                 return;
               }
 
