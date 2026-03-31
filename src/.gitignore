@@ -13,3 +13,5 @@
 
 src/API Keys*
 src/Mozilla-Recovery-Key*
+.vercel
+.env*.local

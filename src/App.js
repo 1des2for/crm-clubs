@@ -1173,37 +1173,117 @@ const pieces = piecesClub || [];
         >
           <h3>Contacts</h3>
 
-          {contacts.map((contact, index) => (
-            <div
-              key={contact.id || index}
+{contacts.map((contact, index) => {
+  const telephoneNettoye = String(contact.telephone || "").replace(/\D/g, "");
+  const telephoneWhatsApp =
+    telephoneNettoye.startsWith("0") && telephoneNettoye.length === 10
+      ? `33${telephoneNettoye.slice(1)}`
+      : telephoneNettoye;
+
+  return (
+    <div
+      key={contact.id || index}
+      style={{
+        border: "1px solid #ccc",
+        padding: 10,
+        margin: 10,
+        background: "#f9f9f9",
+        borderRadius: 8
+      }}
+    >
+      <div><strong>{contact.nom}</strong></div>
+      <div>{contact.fonction}</div>
+
+      <div style={{ marginTop: 4 }}>
+        {contact.telephone || ""}
+      </div>
+
+      <div style={{ marginTop: 4 }}>
+        {contact.mail || ""}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+        {contact.telephone && (
+          <a
+            href={`tel:${contact.telephone}`}
+            style={{ textDecoration: "none" }}
+          >
+            <button
+              type="button"
               style={{
-                border: "1px solid #ccc",
-                padding: 10,
-                margin: 10,
-                background: "#f9f9f9",
-                borderRadius: 8
+                padding: 8,
+                background: "#2e7d32",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer"
               }}
             >
-              <div><strong>{contact.nom}</strong></div>
-              <div>{contact.fonction}</div>
-              <div>{contact.telephone}</div>
-              <div>{contact.mail}</div>
+              Appeler
+            </button>
+          </a>
+        )}
 
-              <button
-                style={{
-                  padding: 8,
-                  marginTop: 10,
-                  background: "#b71c1c",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6
-                }}
-                onClick={() => supprimerContact(contact.id)}
-              >
-                Supprimer ce contact
-              </button>
-            </div>
-          ))}
+        {telephoneWhatsApp && (
+          <a
+            href={`https://wa.me/${telephoneWhatsApp}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <button
+              type="button"
+              style={{
+                padding: 8,
+                background: "#25D366",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer"
+              }}
+            >
+              WhatsApp
+            </button>
+          </a>
+        )}
+
+        {contact.mail && (
+          <a
+            href={`mailto:${contact.mail}?subject=Contact%20Intersport&body=Bonjour%20${encodeURIComponent(contact.nom || "")},`}
+            style={{ textDecoration: "none" }}
+          >
+            <button
+              type="button"
+              style={{
+                padding: 8,
+                background: "#1565c0",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer"
+              }}
+            >
+              Mail
+            </button>
+          </a>
+        )}
+
+        <button
+          style={{
+            padding: 8,
+            background: "#b71c1c",
+            color: "white",
+            border: "none",
+            borderRadius: 6
+          }}
+          onClick={() => supprimerContact(contact.id)}
+        >
+          Supprimer ce contact
+        </button>
+      </div>
+    </div>
+  );
+})}
 
           <h4>Ajouter un contact</h4>
 
@@ -1911,48 +1991,95 @@ const pieces = piecesClub || [];
             Enregistrer modifications
           </button>
 
-          <button
-            style={{
-              padding: 10,
-              marginRight: 10,
-              background: "#b71c1c",
-              color: "white",
-              border: "none",
-              borderRadius: 6
-            }}
-            onClick={async () => {
-              const ok = window.confirm(
-                "Voulez-vous vraiment supprimer ce club ?"
-              );
-              if (!ok) return;
+ <button
+  style={{
+    padding: 10,
+    marginRight: 10,
+    background: "#b71c1c",
+    color: "white",
+    border: "none",
+    borderRadius: 6
+  }}
+  onClick={async () => {
+    const ok = window.confirm(
+      "Voulez-vous vraiment supprimer ce club ?"
+    );
+    if (!ok) return;
 
-              const clubId = clubSelected.id || clubSelected.identifiant;
+    const clubId = clubSelected.id || clubSelected.identifiant;
 
-              const { error } = await supabase
-                .from("clubs")
-                .delete()
-                .eq("id", clubId);
+    const { error: errorMag } = await supabase
+      .from("magasins_club")
+      .delete()
+      .eq("club_id", clubId);
 
-              if (error) {
-                console.log("ERREUR DELETE CLUB :", error);
-                alert("Erreur lors de la suppression du club");
-                return;
-              }
+    if (errorMag) {
+      console.log("ERREUR DELETE MAGASINS :", errorMag);
+      alert("Erreur lors de la suppression des magasins liés");
+      return;
+    }
 
-              await chargerClubs();
-              await chargerTousContacts();
-              await chargerToutesActions();
+    const { error: errorContacts } = await supabase
+      .from("contacts")
+      .delete()
+      .eq("club_id", clubId);
 
-              setClubSelected(null);
-              setScreen("dashboard");
+    if (errorContacts) {
+      console.log("ERREUR DELETE CONTACTS :", errorContacts);
+    }
 
-              setPieceNom("");
-              setPieceType("");
-              setPieceData("");
-            }}
-          >
-            Supprimer ce club
-          </button>
+    const { error: errorHistoriques } = await supabase
+      .from("historiques")
+      .delete()
+      .eq("club_id", clubId);
+
+    if (errorHistoriques) {
+      console.log("ERREUR DELETE HISTORIQUES :", errorHistoriques);
+    }
+
+    const { error: errorActions } = await supabase
+      .from("actions")
+      .delete()
+      .eq("club_id", clubId);
+
+    if (errorActions) {
+      console.log("ERREUR DELETE ACTIONS :", errorActions);
+    }
+
+    const { error: errorPieces } = await supabase
+      .from("pieces_jointes")
+      .delete()
+      .eq("club_id", clubId);
+
+    if (errorPieces) {
+      console.log("ERREUR DELETE PIECES :", errorPieces);
+    }
+
+    const { error } = await supabase
+      .from("clubs")
+      .delete()
+      .eq("id", clubId);
+
+    if (error) {
+      console.log("ERREUR DELETE CLUB :", error);
+      alert("Erreur lors de la suppression du club");
+      return;
+    }
+
+    await chargerClubs();
+    await chargerTousContacts();
+    await chargerToutesActions();
+
+    setClubSelected(null);
+    setScreen("dashboard");
+
+    setPieceNom("");
+    setPieceType("");
+    setPieceData("");
+  }}
+>
+  Supprimer ce club
+</button> 
 
           <button
             style={{ padding: 10 }}
