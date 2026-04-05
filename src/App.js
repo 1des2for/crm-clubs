@@ -1,8 +1,18 @@
+/* =========================================================
+   BLOC 1 - IMPORTS
+========================================================= */
+
 import { useState, useEffect } from "react";
 import logo from "./logo.jpg";
 import { supabase } from "./supabaseClient";
-
+const VERSION = "v2.0.0";
+/* =========================================================
+   BLOC 2 - DÉBUT COMPOSANT + UTILISATEURS
+========================================================= */
 function App() {
+/* =========================================================
+   BLOC 2A - UTILISATEURS
+========================================================= */
   const utilisateurs = [
     { login: "adrien", mdp: "vt01", nom: "Adrien" },
     { login: "herve", mdp: "vt02", nom: "Hervé" },
@@ -14,10 +24,47 @@ function App() {
 
   const [magasinsClub, setMagasinsClub] = useState([]);
   const [contactsClub, setContactsClub] = useState([]);
+ /* =========================================================
+   BLOC 3 - FONCTIONS OUTILS DATE ET PLANNING
+========================================================= */ 
+function getDateJourPlanning(jour) {
+  const jours = {
+    Lundi: 1,
+    Mardi: 2,
+    Mercredi: 3,
+    Jeudi: 4,
+    Vendredi: 5,
+    Samedi: 6
+  };
+
+  const aujourdHui = new Date();
+  const copie = new Date(aujourdHui);
+  const jourActuel = copie.getDay();
+  const jourCible = jours[jour] || 1;
+
+  const diff = jourActuel === 0
+    ? jourCible - 7
+    : jourCible - jourActuel;
+
+  copie.setDate(copie.getDate() + diff);
+
+  const annee = copie.getFullYear();
+  const mois = String(copie.getMonth() + 1).padStart(2, "0");
+  const jourDuMois = String(copie.getDate()).padStart(2, "0");
+
+  return `${annee}-${mois}-${jourDuMois}`;
+}
+/* =========================================================
+   BLOC 4 - STATES PRINCIPAUX
+========================================================= */
+  const [planningDate, setPlanningDate] = useState(getDateJourPlanning("Lundi"));
+  const [planningHeure, setPlanningHeure] = useState("10:00");
+  const [planningDuree, setPlanningDuree] = useState("1h");
   const [actionsClub, setActionsClub] = useState([]);
   const [historiquesClub, setHistoriquesClub] = useState([]);
   const [toutesActions, setToutesActions] = useState([]);
   const [planning, setPlanning] = useState([]);
+  const [objectifs, setObjectifs] = useState([]);
   const [allContacts, setAllContacts] = useState([]);
 
   const [username, setUsername] = useState("");
@@ -110,12 +157,15 @@ function App() {
   const [planningType, setPlanningType] = useState("Visite club");
   const [planningCommentaire, setPlanningCommentaire] = useState("");
 
+
   const [filtreCommercial, setFiltreCommercial] = useState("Moi");
-const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
+  const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
+  const [modeObjectif, setModeObjectif] = useState("Exercice fiscal");
+  const [exerciceSelectionne, setExerciceSelectionne] = useState("2026");
   const [dateDepuis, setDateDepuis] = useState(dateDuJourInput);
   const [filtreSport, setFiltreSport] = useState("Tous les sports");
   const [filtreFinancier, setFiltreFinancier] = useState("Tous");
-
+  const [filtreBlocDashboard, setFiltreBlocDashboard] = useState("Tous");
   const [pieceNom, setPieceNom] = useState("");
   const [pieceType, setPieceType] = useState("");
   const [pieceData, setPieceData] = useState("");
@@ -124,6 +174,15 @@ const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
 
   const [alerteDoublonClub, setAlerteDoublonClub] = useState("");
   const [alerteDoublonContact, setAlerteDoublonContact] = useState("");
+  
+  const [objectifCommercialSelection, setObjectifCommercialSelection] = useState("Bruno");
+  const [objectifExerciceSelection, setObjectifExerciceSelection] = useState("2026");
+/* =========================================================
+   BLOC 5 - USEEFFECTS DE SYNCHRO LOCALE
+========================================================= */
+useEffect(() => {
+  setPlanningDate(getDateJourPlanning(planningJour));
+}, [planningJour]);
 
   useEffect(() => {
     localStorage.setItem("sportsOptions", JSON.stringify(sportsOptions));
@@ -135,7 +194,9 @@ const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
       JSON.stringify(historiqueTypeOptions)
     );
   }, [historiqueTypeOptions]);
-
+/* =========================================================
+   BLOC 6 - CHARGEMENT DES DONNÉES SUPABASE
+========================================================= */
 const chargerPiecesClub = async (clubId) => {
   if (!clubId) {
     setPiecesClub([]);
@@ -157,160 +218,181 @@ const chargerPiecesClub = async (clubId) => {
   setPiecesClub(data || []);
 };
 
-  const chargerClubs = async () => {
-    const { data, error } = await supabase.from("clubs").select("*");
+const chargerClubs = async () => {
+  const { data, error } = await supabase.from("clubs").select("*");
 
-    if (error) {
-      console.log("ERROR FETCH CLUBS :", error);
-      setClubs([]);
-      return;
-    }
+  if (error) {
+    console.log("ERROR FETCH CLUBS :", error);
+    setClubs([]);
+    return;
+  }
 
-    setClubs(data || []);
-  };
+  setClubs(data || []);
+};
 
-  const chargerTousContacts = async () => {
-    const { data, error } = await supabase.from("contacts").select("*");
+const chargerTousContacts = async () => {
+  const { data, error } = await supabase.from("contacts").select("*");
 
-    if (error) {
-      console.log("ERREUR FETCH TOUS CONTACTS :", error);
-      setAllContacts([]);
-      return;
-    }
+  if (error) {
+    console.log("ERREUR FETCH TOUS CONTACTS :", error);
+    setAllContacts([]);
+    return;
+  }
 
-    setAllContacts(data || []);
-  };
+  setAllContacts(data || []);
+};
 
-  const chargerToutesActions = async () => {
-    const { data, error } = await supabase.from("actions").select("*");
+const chargerToutesActions = async () => {
+  const { data, error } = await supabase.from("actions").select("*");
 
-    if (error) {
-      console.log("ERREUR FETCH TOUTES ACTIONS :", error);
-      setToutesActions([]);
-      return;
-    }
+  if (error) {
+    console.log("ERREUR FETCH TOUTES ACTIONS :", error);
+    setToutesActions([]);
+    return;
+  }
 
-    setToutesActions(data || []);
-  };
+  setToutesActions(data || []);
+};
 
-  const chargerPlanning = async () => {
-    const { data, error } = await supabase
-      .from("planning")
-      .select("*")
-      .order("id", { ascending: false });
+const chargerPlanning = async () => {
+  const { data, error } = await supabase
+    .from("planning")
+    .select("*")
+    .order("id", { ascending: false });
 
-    if (error) {
-      console.log("ERREUR FETCH PLANNING :", error);
-      setPlanning([]);
-      return;
-    }
+  if (error) {
+    console.log("ERREUR FETCH PLANNING :", error);
+    setPlanning([]);
+    return;
+  }
 
-    setPlanning(data || []);
-  };
+  setPlanning(data || []);
+};
 
-  const chargerMagasinsClub = async (clubId) => {
-    if (!clubId) {
-      setMagasinsClub([]);
-      return;
-    }
+const chargerObjectifs = async () => {
+  const { data, error } = await supabase
+    .from("objectifs")
+    .select("*")
+    .order("annee_reference", { ascending: false })
+    .order("mois", { ascending: true });
 
-    const { data, error } = await supabase
-      .from("magasins_club")
-      .select("*")
-      .eq("club_id", clubId);
+  if (error) {
+    console.log("ERREUR FETCH OBJECTIFS :", error);
+    setObjectifs([]);
+    return;
+  }
 
-    if (error) {
-      console.log("ERREUR FETCH MAGASINS :", error);
-      setMagasinsClub([]);
-      return;
-    }
+  setObjectifs(data || []);
+};
 
-    setMagasinsClub(data || []);
-  };
+const chargerMagasinsClub = async (clubId) => {
+  if (!clubId) {
+    setMagasinsClub([]);
+    return;
+  }
 
-  const chargerContactsClub = async (clubId) => {
-    if (!clubId) {
-      setContactsClub([]);
-      return;
-    }
+  const { data, error } = await supabase
+    .from("magasins_club")
+    .select("*")
+    .eq("club_id", clubId);
 
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("*")
-      .eq("club_id", clubId);
+  if (error) {
+    console.log("ERREUR FETCH MAGASINS :", error);
+    setMagasinsClub([]);
+    return;
+  }
 
-    if (error) {
-      console.log("ERREUR FETCH CONTACTS :", error);
-      setContactsClub([]);
-      return;
-    }
+  setMagasinsClub(data || []);
+};
 
-    setContactsClub(data || []);
-  };
+const chargerContactsClub = async (clubId) => {
+  if (!clubId) {
+    setContactsClub([]);
+    return;
+  }
 
-  const chargerActionsClub = async (clubId) => {
-    if (!clubId) {
-      setActionsClub([]);
-      return;
-    }
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("club_id", clubId);
 
-    const { data, error } = await supabase
-      .from("actions")
-      .select("*")
-      .eq("club_id", clubId)
-      .order("date", { ascending: false });
+  if (error) {
+    console.log("ERREUR FETCH CONTACTS :", error);
+    setContactsClub([]);
+    return;
+  }
 
-    if (error) {
-      console.log("ERREUR FETCH ACTIONS :", error);
-      setActionsClub([]);
-      return;
-    }
+  setContactsClub(data || []);
+};
 
-    setActionsClub(data || []);
-  };
+const chargerActionsClub = async (clubId) => {
+  if (!clubId) {
+    setActionsClub([]);
+    return;
+  }
 
-  const chargerHistoriquesClub = async (clubId) => {
-    if (!clubId) {
-      setHistoriquesClub([]);
-      return;
-    }
+  const { data, error } = await supabase
+    .from("actions")
+    .select("*")
+    .eq("club_id", clubId)
+    .order("date", { ascending: false });
 
-    const { data, error } = await supabase
-      .from("historiques")
-      .select("*")
-      .eq("club_id", clubId)
-      .order("date", { ascending: false });
+  if (error) {
+    console.log("ERREUR FETCH ACTIONS :", error);
+    setActionsClub([]);
+    return;
+  }
 
-    if (error) {
-      console.log("ERREUR FETCH HISTORIQUES :", error);
-      setHistoriquesClub([]);
-      return;
-    }
+  setActionsClub(data || []);
+};
 
-    setHistoriquesClub(data || []);
-  };
+const chargerHistoriquesClub = async (clubId) => {
+  if (!clubId) {
+    setHistoriquesClub([]);
+    return;
+  }
 
-  const chargerDetailClub = async (club) => {
-    setClubSelected(club);
+  const { data, error } = await supabase
+    .from("historiques")
+    .select("*")
+    .eq("club_id", clubId)
+    .order("date", { ascending: false });
 
-    const clubId = club?.id || club?.identifiant;
+  if (error) {
+    console.log("ERREUR FETCH HISTORIQUES :", error);
+    setHistoriquesClub([]);
+    return;
+  }
 
-await Promise.all([
-  chargerMagasinsClub(clubId),
-  chargerContactsClub(clubId),
-  chargerActionsClub(clubId),
-  chargerHistoriquesClub(clubId),
-  chargerPiecesClub(clubId)
-]);
-  };
+  setHistoriquesClub(data || []);
+};
 
-  useEffect(() => {
-    chargerClubs();
-    chargerTousContacts();
-    chargerToutesActions();
-    chargerPlanning();
-  }, []);
+const chargerDetailClub = async (club) => {
+  setClubSelected(club);
 
+  const clubId = club?.id || club?.identifiant;
+
+  await Promise.all([
+    chargerMagasinsClub(clubId),
+    chargerContactsClub(clubId),
+    chargerActionsClub(clubId),
+    chargerHistoriquesClub(clubId),
+    chargerPiecesClub(clubId)
+  ]);
+};
+/* =========================================================
+   BLOC 7 - CHARGEMENT INITIAL APPLICATION
+========================================================= */
+useEffect(() => {
+  chargerClubs();
+  chargerTousContacts();
+  chargerToutesActions();
+  chargerPlanning();
+  chargerObjectifs();
+}, []);
+/* =========================================================
+   BLOC 8 - CONNEXION ET ACTIONS GLOBALES
+========================================================= */
   const supprimerContact = async (idContact) => {
     const confirmation = window.confirm(
       "Voulez-vous vraiment supprimer ce contact ?"
@@ -345,7 +427,9 @@ await Promise.all([
 
     alert("Identifiants incorrects");
   };
-
+/* =========================================================
+   BLOC 9 - VARIABLES DÉRIVÉES ET STYLE
+========================================================= */
   const prochainCodeClub = "CLB" + String(clubs.length + 1).padStart(3, "0");
 
   const couleurCommercial =
@@ -363,12 +447,12 @@ await Promise.all([
       ? "#4B0082"
       : "#f2f2f2";
 
-  const stylePage = {
-    minHeight: "100vh",
-    background: couleurCommercial,
-    padding: 30,
-    fontFamily: "Arial"
-  };
+const stylePage = {
+  minHeight: "100vh",
+  background: couleurCommercial,
+  padding: 12,
+  fontFamily: "Arial"
+};
 
   const commercialActif =
     filtreCommercial === "Moi" ? userConnected : filtreCommercial;
@@ -377,26 +461,34 @@ await Promise.all([
     commercialActif === "Toute l'équipe"
       ? clubs
       : clubs.filter((club) => club.commercial === commercialActif);
+/* =========================================================
+   BLOC 10 - FILTRES TEMPORELS ET ACTIONS FILTRÉES
+========================================================= */
+function getDateLundiCourant() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-  function getDateLundiCourant() {
-    const d = new Date();
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
+function getDatePremierJourMois() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
 
-  function getDatePremierJourMois() {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  }
+function parseInputDate(dateString) {
+  if (!dateString) return null;
+  const d = new Date(dateString + "T00:00:00");
+  return isNaN(d.getTime()) ? null : d;
+}
 
-  function parseInputDate(dateString) {
-    if (!dateString) return null;
-    const d = new Date(dateString + "T00:00:00");
-    return isNaN(d.getTime()) ? null : d;
-  }
+function getExerciceFiscal(date) {
+  const mois = date.getMonth() + 1;
+  const annee = date.getFullYear();
+  return mois >= 4 ? annee : annee - 1;
+}
 
 function isActionDansPeriode(action) {
   if (!action.date) return false;
@@ -416,6 +508,11 @@ function isActionDansPeriode(action) {
     return actionDateObj >= getDatePremierJourMois();
   }
 
+  if (filtrePeriode === "Exercice fiscal") {
+    const dateRef = parseInputDate(dateDepuis) || new Date();
+    return getExerciceFiscal(actionDateObj) === getExerciceFiscal(dateRef);
+  }
+
   if (filtrePeriode === "Depuis telle date") {
     const dateRef = parseInputDate(dateDepuis);
     if (!dateRef) return true;
@@ -423,7 +520,7 @@ function isActionDansPeriode(action) {
   }
 
   return true;
-}  
+}
 
 function getTotauxClub(club) {
   const actionsDuClub = actionsFiltrees.filter(
@@ -445,18 +542,412 @@ function getTotauxClub(club) {
   return { totalLivre, totalFacture, totalPaye };
 }
 
-  const toutesLesActions =
-    commercialActif === "Toute l'équipe"
-      ? toutesActions
-      : toutesActions.filter((a) => {
-          const club = clubs.find(
-            (c) => String(c.id || c.identifiant) === String(a.club_id)
-          );
-          return club && club.commercial === commercialActif;
-        });
+const toutesLesActions =
+  commercialActif === "Toute l'équipe"
+    ? toutesActions
+    : toutesActions.filter((a) => {
+        const club = clubs.find(
+          (c) => String(c.id || c.identifiant) === String(a.club_id)
+        );
+        return club && club.commercial === commercialActif;
+      });
 
- const actionsFiltrees = toutesLesActions.filter(isActionDansPeriode);
+const actionsFiltrees = toutesLesActions.filter(isActionDansPeriode);
 
+const dateReference = dateDepuis
+  ? new Date(dateDepuis + "T00:00:00")
+  : new Date();
+
+const moisReference = dateReference.getMonth() + 1;
+const anneeReference = dateReference.getFullYear();
+
+const exerciceFiscalReference =
+  modeObjectif === "Exercice fiscal"
+    ? Number(exerciceSelectionne)
+    : getExerciceFiscal(dateReference);
+
+const objectifsFiltresCommercial =
+  commercialActif === "Toute l'équipe"
+    ? objectifs
+    : objectifs.filter(
+        (obj) =>
+          String(obj.commercial || "").toLowerCase() ===
+          String(commercialActif || "").toLowerCase()
+      );
+
+/* =========================
+   OBJECTIF MOIS CA
+========================= */
+const objectifsMois = objectifsFiltresCommercial.filter((obj) => {
+  if (String(obj.indicateur || "").toLowerCase() !== "ca_encaisse_ttc") {
+    return false;
+  }
+
+  const moisObj = Number(obj.mois);
+  const anneeObj = Number(obj.annee_reference);
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (moisReference >= 4) {
+      return anneeObj === exerciceDebut && moisObj === moisReference;
+    }
+
+    if (moisReference <= 3) {
+      return anneeObj === exerciceDebut + 1 && moisObj === moisReference;
+    }
+
+    return false;
+  }
+
+  return (
+    anneeObj === Number(anneeReference) &&
+    moisObj === Number(moisReference)
+  );
+});
+
+const objectifMoisCA = objectifsMois.reduce(
+  (sum, obj) => sum + (Number(obj.valeur_objectif) || 0),
+  0
+);
+
+const actionsEncaisseesMois = actionsFiltrees.filter((a) => {
+  if (a.type !== "Payé") return false;
+  if (!a.date) return false;
+
+  const d = new Date(a.date + "T00:00:00");
+  const moisAction = d.getMonth() + 1;
+  const anneeAction = d.getFullYear();
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceAction = getExerciceFiscal(d);
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (exerciceAction !== exerciceDebut) return false;
+
+    if (moisReference >= 4) {
+      return anneeAction === exerciceDebut && moisAction === moisReference;
+    }
+
+    return anneeAction === exerciceDebut + 1 && moisAction === moisReference;
+  }
+
+  return (
+    anneeAction === Number(anneeReference) &&
+    moisAction === Number(moisReference)
+  );
+});
+
+const realiseMoisCA = actionsEncaisseesMois.reduce(
+  (sum, a) => sum + (Number(a.montantTTC) || 0),
+  0
+);
+
+/* =========================
+   OBJECTIF CUMUL CA
+========================= */
+const objectifsCumul = objectifsFiltresCommercial.filter((obj) => {
+  if (String(obj.indicateur || "").toLowerCase() !== "ca_encaisse_ttc") {
+    return false;
+  }
+
+  const moisObj = Number(obj.mois);
+  const anneeObj = Number(obj.annee_reference);
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (moisReference >= 4) {
+      return (
+        anneeObj === exerciceDebut &&
+        moisObj >= 4 &&
+        moisObj <= moisReference
+      );
+    }
+
+    return (
+      (anneeObj === exerciceDebut && moisObj >= 4) ||
+      (anneeObj === exerciceDebut + 1 && moisObj <= moisReference)
+    );
+  }
+
+  return (
+    anneeObj === Number(anneeReference) &&
+    moisObj <= Number(moisReference)
+  );
+});
+
+const objectifCumulCA = objectifsCumul.reduce(
+  (sum, obj) => sum + (Number(obj.valeur_objectif) || 0),
+  0
+);
+
+const actionsEncaisseesCumul = actionsFiltrees.filter((a) => {
+  if (a.type !== "Payé") return false;
+  if (!a.date) return false;
+
+  const d = new Date(a.date + "T00:00:00");
+  const moisAction = d.getMonth() + 1;
+  const anneeAction = d.getFullYear();
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceAction = getExerciceFiscal(d);
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (exerciceAction !== exerciceDebut) return false;
+
+    if (moisReference >= 4) {
+      return (
+        anneeAction === exerciceDebut &&
+        moisAction >= 4 &&
+        moisAction <= moisReference
+      );
+    }
+
+    return (
+      (anneeAction === exerciceDebut && moisAction >= 4) ||
+      (anneeAction === exerciceDebut + 1 && moisAction <= moisReference)
+    );
+  }
+
+  return (
+    anneeAction === Number(anneeReference) &&
+    moisAction <= Number(moisReference)
+  );
+});
+
+const realiseCumulCA = actionsEncaisseesCumul.reduce(
+  (sum, a) => sum + (Number(a.montantTTC) || 0),
+  0
+);
+
+/* =========================
+   OBJECTIF MOIS VISITES
+========================= */
+const objectifsMoisVisites = objectifsFiltresCommercial.filter((obj) => {
+  if (String(obj.indicateur || "").toLowerCase() !== "visites") {
+    return false;
+  }
+
+  const moisObj = Number(obj.mois);
+  const anneeObj = Number(obj.annee_reference);
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (moisReference >= 4) {
+      return anneeObj === exerciceDebut && moisObj === moisReference;
+    }
+
+    if (moisReference <= 3) {
+      return anneeObj === exerciceDebut + 1 && moisObj === moisReference;
+    }
+
+    return false;
+  }
+
+  return (
+    anneeObj === Number(anneeReference) &&
+    moisObj === Number(moisReference)
+  );
+});
+
+const objectifMoisVisites = objectifsMoisVisites.reduce(
+  (sum, obj) => sum + (Number(obj.valeur_objectif) || 0),
+  0
+);
+
+const actionsVisitesMois = actionsFiltrees.filter((a) => {
+  if (a.type !== "Visite club") return false;
+  if (!a.date) return false;
+
+  const d = new Date(a.date + "T00:00:00");
+  const moisAction = d.getMonth() + 1;
+  const anneeAction = d.getFullYear();
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceAction = getExerciceFiscal(d);
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (exerciceAction !== exerciceDebut) return false;
+
+    if (moisReference >= 4) {
+      return anneeAction === exerciceDebut && moisAction === moisReference;
+    }
+
+    return anneeAction === exerciceDebut + 1 && moisAction === moisReference;
+  }
+
+  return (
+    anneeAction === Number(anneeReference) &&
+    moisAction === Number(moisReference)
+  );
+});
+
+const realiseMoisVisites = actionsVisitesMois.length;
+
+/* =========================
+   OBJECTIF CUMUL VISITES
+========================= */
+const objectifsCumulVisites = objectifsFiltresCommercial.filter((obj) => {
+  if (String(obj.indicateur || "").toLowerCase() !== "visites") {
+    return false;
+  }
+
+  const moisObj = Number(obj.mois);
+  const anneeObj = Number(obj.annee_reference);
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (moisReference >= 4) {
+      return (
+        anneeObj === exerciceDebut &&
+        moisObj >= 4 &&
+        moisObj <= moisReference
+      );
+    }
+
+    return (
+      (anneeObj === exerciceDebut && moisObj >= 4) ||
+      (anneeObj === exerciceDebut + 1 && moisObj <= moisReference)
+    );
+  }
+
+  return (
+    anneeObj === Number(anneeReference) &&
+    moisObj <= Number(moisReference)
+  );
+});
+
+const objectifCumulVisites = objectifsCumulVisites.reduce(
+  (sum, obj) => sum + (Number(obj.valeur_objectif) || 0),
+  0
+);
+
+const actionsVisitesCumul = actionsFiltrees.filter((a) => {
+  if (a.type !== "Visite club") return false;
+  if (!a.date) return false;
+
+  const d = new Date(a.date + "T00:00:00");
+  const moisAction = d.getMonth() + 1;
+  const anneeAction = d.getFullYear();
+
+  if (modeObjectif === "Exercice fiscal") {
+    const exerciceAction = getExerciceFiscal(d);
+    const exerciceDebut = Number(exerciceSelectionne);
+
+    if (exerciceAction !== exerciceDebut) return false;
+
+    if (moisReference >= 4) {
+      return (
+        anneeAction === exerciceDebut &&
+        moisAction >= 4 &&
+        moisAction <= moisReference
+      );
+    }
+
+    return (
+      (anneeAction === exerciceDebut && moisAction >= 4) ||
+      (anneeAction === exerciceDebut + 1 && moisAction <= moisReference)
+    );
+  }
+
+  return (
+    anneeAction === Number(anneeReference) &&
+    moisAction <= Number(moisReference)
+  );
+});
+
+const realiseCumulVisites = actionsVisitesCumul.length;
+
+/* =========================
+   TAUX / ECARTS / STATUTS CA
+========================= */
+const tauxMoisCA =
+  objectifMoisCA > 0 ? (realiseMoisCA / objectifMoisCA) * 100 : 0;
+
+const tauxCumulCA =
+  objectifCumulCA > 0 ? (realiseCumulCA / objectifCumulCA) * 100 : 0;
+
+const ecartMoisCA = realiseMoisCA - objectifMoisCA;
+const ecartCumulCA = realiseCumulCA - objectifCumulCA;
+
+/* =========================
+   TAUX / ECARTS / STATUTS VISITES
+========================= */
+const tauxMoisVisites =
+  objectifMoisVisites > 0
+    ? (realiseMoisVisites / objectifMoisVisites) * 100
+    : 0;
+
+const tauxCumulVisites =
+  objectifCumulVisites > 0
+    ? (realiseCumulVisites / objectifCumulVisites) * 100
+    : 0;
+
+const ecartMoisVisites = realiseMoisVisites - objectifMoisVisites;
+const ecartCumulVisites = realiseCumulVisites - objectifCumulVisites;
+
+function getStatutObjectif(realise, objectif) {
+  if (objectif <= 0) return "Sans objectif";
+  if (realise < objectif) return "Retard";
+  if (realise === objectif) return "Atteint";
+  return "Dépassé";
+}
+
+const statutMoisCA = getStatutObjectif(realiseMoisCA, objectifMoisCA);
+const statutCumulCA = getStatutObjectif(realiseCumulCA, objectifCumulCA);
+
+const statutMoisVisites = getStatutObjectif(
+  realiseMoisVisites,
+  objectifMoisVisites
+);
+const statutCumulVisites = getStatutObjectif(
+  realiseCumulVisites,
+  objectifCumulVisites
+);
+
+/* =========================
+   LARGEURS BARRES VISUELLES CA
+========================= */
+const largeurTotaleMois = Math.max(tauxMoisCA, 100);
+const largeurVertMois =
+  tauxMoisCA <= 100 ? tauxMoisCA : (100 / largeurTotaleMois) * 100;
+const largeurBleuMois =
+  tauxMoisCA > 100 ? ((tauxMoisCA - 100) / largeurTotaleMois) * 100 : 0;
+
+const largeurTotaleCumul = Math.max(tauxCumulCA, 100);
+const largeurVertCumul =
+  tauxCumulCA <= 100 ? tauxCumulCA : (100 / largeurTotaleCumul) * 100;
+const largeurBleuCumul =
+  tauxCumulCA > 100 ? ((tauxCumulCA - 100) / largeurTotaleCumul) * 100 : 0;
+
+/* =========================
+   LARGEURS BARRES VISUELLES VISITES
+========================= */
+const largeurTotaleMoisVisites = Math.max(tauxMoisVisites, 100);
+const largeurVertMoisVisites =
+  tauxMoisVisites <= 100
+    ? tauxMoisVisites
+    : (100 / largeurTotaleMoisVisites) * 100;
+const largeurBleuMoisVisites =
+  tauxMoisVisites > 100
+    ? ((tauxMoisVisites - 100) / largeurTotaleMoisVisites) * 100
+    : 0;
+
+const largeurTotaleCumulVisites = Math.max(tauxCumulVisites, 100);
+const largeurVertCumulVisites =
+  tauxCumulVisites <= 100
+    ? tauxCumulVisites
+    : (100 / largeurTotaleCumulVisites) * 100;
+const largeurBleuCumulVisites =
+  tauxCumulVisites > 100
+    ? ((tauxCumulVisites - 100) / largeurTotaleCumulVisites) * 100
+    : 0;
+/* =========================================================
+   BLOC 11 - OUTILS DE SAISIE ET OPTIONS DYNAMIQUES
+========================================================= */
   function chargerPiece(file) {
     if (!file) return;
 
@@ -504,7 +995,9 @@ function getTotauxClub(club) {
 
     return valeur;
   }
-
+/* =========================================================
+   BLOC 12 - CALCULS DASHBOARD ET RECHERCHE
+========================================================= */
   const rechercheMin = recherche.trim().toLowerCase();
 
 const clubsFiltres = clubsFiltresCommercial.filter((club) => {
@@ -520,7 +1013,22 @@ const clubsFiltres = clubsFiltresCommercial.filter((club) => {
   );
 
   const actionsDuClubDansPeriode = actionsDuClub.filter(isActionDansPeriode);
+  if (filtreBlocDashboard === "VISITES_MOIS") {
+    const visitesDuMois = actionsDuClub.filter((a) => {
+      if (a.type !== "Visite club") return false;
+      if (!a.date) return false;
 
+      const d = new Date(a.date + "T00:00:00");
+      const maintenant = new Date();
+
+      return (
+        d.getMonth() === maintenant.getMonth() &&
+        d.getFullYear() === maintenant.getFullYear()
+      );
+    });
+
+    if (visitesDuMois.length === 0) return false;
+  }
   if (
     filtrePeriode !== "Toutes périodes" &&
     actionsDuClubDansPeriode.length === 0
@@ -622,6 +1130,9 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
   const valeur = Number(club.potentiel) || 0;
   return total + valeur;
 }, 0);
+/* =========================================================
+  BLOC 13 - DOUBLONS ET GESTION MAGASINS
+========================================================= */
   function detecterDoublonClub(nomSaisi) {
     const nom = (nomSaisi || "").trim().toLowerCase();
     if (nom === "") return "";
@@ -713,6 +1224,106 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
     const copie = magasinsClub.filter((_, i) => i !== index);
     setMagasinsClub(copie.length > 0 ? copie : []);
   }
+/* =========================================================
+  BLOC 14 - GOOGLE AGENDA ET EXPORT CSV
+========================================================= */	
+function formaterDateGoogle(dateStr, heureStr) {
+  if (!dateStr) return "";
+
+  if (!heureStr) {
+    const debut = new Date(`${dateStr}T00:00:00`);
+    const fin = new Date(debut);
+    fin.setDate(fin.getDate() + 1);
+
+    const y1 = debut.getFullYear();
+    const m1 = String(debut.getMonth() + 1).padStart(2, "0");
+    const d1 = String(debut.getDate()).padStart(2, "0");
+
+    const y2 = fin.getFullYear();
+    const m2 = String(fin.getMonth() + 1).padStart(2, "0");
+    const d2 = String(fin.getDate()).padStart(2, "0");
+
+    return `${y1}${m1}${d1}/${y2}${m2}${d2}`;
+  }
+
+  const debut = new Date(`${dateStr}T${heureStr}:00`);
+  const y = debut.getFullYear();
+  const m = String(debut.getMonth() + 1).padStart(2, "0");
+  const d = String(debut.getDate()).padStart(2, "0");
+  const h = String(debut.getHours()).padStart(2, "0");
+  const min = String(debut.getMinutes()).padStart(2, "0");
+
+  return `${y}${m}${d}T${h}${min}00`;
+}
+
+function calculerFinPlanning(dateStr, heureStr, dureeStr) {
+  if (!dateStr) return "";
+
+  if (dureeStr === "journee") {
+    const debut = new Date(`${dateStr}T00:00:00`);
+    const fin = new Date(debut);
+    fin.setDate(fin.getDate() + 1);
+
+    const y = fin.getFullYear();
+    const m = String(fin.getMonth() + 1).padStart(2, "0");
+    const d = String(fin.getDate()).padStart(2, "0");
+
+    return `${y}${m}${d}`;
+  }
+
+  const debut = new Date(`${dateStr}T${heureStr || "10:00"}:00`);
+  const fin = new Date(debut);
+
+  if (dureeStr === "30min") fin.setMinutes(fin.getMinutes() + 30);
+  else if (dureeStr === "1h") fin.setHours(fin.getHours() + 1);
+  else if (dureeStr === "2h") fin.setHours(fin.getHours() + 2);
+  else if (dureeStr === "3h") fin.setHours(fin.getHours() + 3);
+  else if (dureeStr === "demi-journee") fin.setHours(fin.getHours() + 4);
+  else fin.setHours(fin.getHours() + 2);
+
+  const y = fin.getFullYear();
+  const m = String(fin.getMonth() + 1).padStart(2, "0");
+  const d = String(fin.getDate()).padStart(2, "0");
+  const h = String(fin.getHours()).padStart(2, "0");
+  const min = String(fin.getMinutes()).padStart(2, "0");
+
+  return `${y}${m}${d}T${h}${min}00`;
+}
+
+function ouvrirGoogleAgendaDepuisPlanning(ligne) {
+  const titre = `${ligne.type || "Rendez-vous"} - ${ligne.clubCode || ""} ${ligne.clubNom || ""}`.trim();
+
+  let dates = "";
+
+  if (ligne.duree_rdv === "journee") {
+    const debutJournee = formaterDateGoogle(ligne.date_rdv, null);
+    const finJournee = calculerFinPlanning(ligne.date_rdv, null, "journee");
+    dates = `${debutJournee}${finJournee ? finJournee : ""}`;
+  } else {
+    const debut = formaterDateGoogle(ligne.date_rdv, ligne.heure_rdv || "10:00");
+    const fin = calculerFinPlanning(
+      ligne.date_rdv,
+      ligne.heure_rdv || "10:00",
+      ligne.duree_rdv || "1h"
+    );
+    dates = `${debut}/${fin}`;
+  }
+
+  const details = [
+    `Club : ${ligne.clubCode || ""} ${ligne.clubNom || ""}`.trim(),
+    `Type : ${ligne.type || ""}`,
+    `Commercial : ${ligne.commercial || ""}`,
+    `Commentaire : ${ligne.commentaire || ""}`
+  ].join("\n");
+
+  const url =
+    "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+    `&text=${encodeURIComponent(titre)}` +
+    `&dates=${encodeURIComponent(dates)}` +
+    `&details=${encodeURIComponent(details)}`;
+
+  window.open(url, "_blank");
+}
 
   function nettoyerCSV(valeur) {
     const texte = String(valeur ?? "");
@@ -780,7 +1391,9 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
     document.body.removeChild(lien);
     URL.revokeObjectURL(url);
   }
-
+/* =========================================================
+  BLOC 15 - RENDU ECRAN PLANNING
+========================================================= */
   if (userConnected && screen === "planning") {
     const planningUtilisateur =
       commercialActif === "Toute l'équipe"
@@ -789,6 +1402,7 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
 
     return (
       <div style={stylePage}>
+	   
         <h2>Planning semaine</h2>
 
         <div
@@ -826,12 +1440,30 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
               marginBottom: 10
             }}
           >
-            <div><strong>{ligne.jour}</strong></div>
-            <div>{ligne.type}</div>
-            <div>{ligne.clubCode} - {ligne.clubNom}</div>
-            <div>{ligne.commentaire}</div>
-            <div><em>{ligne.commercial}</em></div>
-
+<div><strong>{ligne.jour}</strong></div>
+<div>
+  {ligne.date_rdv || ""}{" "}
+  {ligne.heure_rdv ? `- ${ligne.heure_rdv}` : ""}
+  {ligne.duree_rdv ? ` - ${ligne.duree_rdv}` : ""}
+</div>
+<div>{ligne.type}</div>
+<div>{ligne.clubCode} - {ligne.clubNom}</div>
+<div>{ligne.commentaire}</div>
+<div><em>{ligne.commercial}</em></div>
+<button
+  style={{
+    padding: 8,
+    marginTop: 10,
+    marginRight: 10,
+    background: "#1565c0",
+    color: "white",
+    border: "none",
+    borderRadius: 6
+  }}
+  onClick={() => ouvrirGoogleAgendaDepuisPlanning(ligne)}
+>
+  Google Agenda
+</button>
             <button
               style={{
                 padding: 8,
@@ -926,7 +1558,41 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
               ))}
             </select>
           </div>
+<div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+  <div>
+    <div>Date</div>
+    <input
+      type="date"
+      value={planningDate}
+      onChange={(e) => setPlanningDate(e.target.value)}
+    />
+  </div>
 
+  <div>
+    <div>Heure</div>
+    <input
+      type="time"
+      value={planningHeure}
+      onChange={(e) => setPlanningHeure(e.target.value)}
+      disabled={planningDuree === "journee"}
+    />
+  </div>
+
+  <div>
+    <div>Durée</div>
+<select
+  value={planningDuree}
+  onChange={(e) => setPlanningDuree(e.target.value)}
+>
+  <option value="30min">30 min</option>
+  <option value="1h">1h</option>
+  <option value="2h">2h</option>
+  <option value="3h">3h</option>
+  <option value="demi-journee">1/2 journée</option>
+  <option value="journee">Journée</option>
+</select>
+  </div>
+</div>
           <div>
             <input
               placeholder="Commentaire"
@@ -943,16 +1609,29 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
                 alert("Choisir un club");
                 return;
               }
+if (!planningDate) {
+  alert("Choisir une date");
+  return;
+}
 
+if (planningDuree !== "journee" && !planningHeure) {
+  alert("Choisir une heure");
+  return;
+}
               const nouvelleLigne = {
-                commercial: userConnected,
-                jour: planningJour,
-                type: planningType,
-                clubCode: clubSelected.code,
-                clubNom: clubSelected.nom,
-                club_id: clubSelected.id || clubSelected.identifiant,
-                commentaire: planningCommentaire
-              };
+				  
+  commercial: userConnected,
+  jour: planningJour,
+  type: planningType,
+  clubCode: clubSelected.code,
+  clubNom: clubSelected.nom,
+  club_id: clubSelected.id || clubSelected.identifiant,
+  commentaire: planningCommentaire,
+  date_rdv: planningDate,
+  heure_rdv: planningDuree === "journee" ? null : planningHeure,
+  duree_rdv: planningDuree
+};
+            
 
               const { data, error } = await supabase
                 .from("planning")
@@ -960,17 +1639,20 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
                 .select()
                 .single();
 
-              if (error) {
-                console.log("ERREUR INSERT PLANNING :", error);
-                alert("Erreur lors de l'enregistrement du planning");
-                return;
-              }
+if (error) {
+  console.log("ERREUR INSERT PLANNING :", error);
+  alert("Erreur planning : " + error.message);
+  return;
+}
 
               setPlanning((prev) => [data, ...prev]);
 
               setPlanningJour("Lundi");
-              setPlanningType("Visite club");
-              setPlanningCommentaire("");
+setPlanningDate(getDateJourPlanning("Lundi"));
+setPlanningHeure("10:00");
+setPlanningDuree("1h");
+setPlanningType("Visite club");
+setPlanningCommentaire("");
             }}
           >
             Ajouter au planning
@@ -986,6 +1668,9 @@ const potentielTotal = clubsFiltres.reduce((total, club) => {
       </div>
     );
   }
+  /* =========================================================
+  BLOC 16 - RENDU ECRAN DETAIL CLUB
+========================================================= */
    if (userConnected && screen === "detailClub" && clubSelected) {
     const contacts = contactsClub || [];
     const actions = actionsClub || [];
@@ -1957,146 +2642,181 @@ const pieces = piecesClub || [];
 )}
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <button
-            style={{ padding: 10, marginRight: 10 }}
-            onClick={async () => {
-              const clubId = clubSelected.id || clubSelected.identifiant;
+ <div style={{ marginTop: 20 }}>
+  <button
+    style={{ padding: 10, marginRight: 10 }}
+    onClick={async () => {
+      const clubId = clubSelected.id || clubSelected.identifiant;
 
-              const { error } = await supabase
-                .from("clubs")
-                .update({
-                  nom: clubSelected.nom,
-                  ville: clubSelected.ville,
-                  sport: clubSelected.sport,
-                  adherents: clubSelected.adherents,
-                  potentiel: clubSelected.potentiel
-                })
-                .eq("id", clubId);
+      const { error } = await supabase
+        .from("clubs")
+        .update({
+          nom: clubSelected.nom,
+          ville: clubSelected.ville,
+          sport: clubSelected.sport,
+          adherents: clubSelected.adherents,
+          potentiel: clubSelected.potentiel
+        })
+        .eq("id", clubId);
 
-              if (error) {
-                console.log("ERREUR UPDATE CLUB :", error);
-                alert("Erreur lors de la mise à jour du club");
-                return;
-              }
+      if (error) {
+        console.log("ERREUR UPDATE CLUB :", error);
+        alert("Erreur lors de la mise à jour du club");
+        return;
+      }
 
-              await chargerClubs();
-              setScreen("dashboard");
+      const { error: errorDeleteMag } = await supabase
+        .from("magasins_club")
+        .delete()
+        .eq("club_id", clubId);
 
-              setPieceNom("");
-              setPieceType("");
-              setPieceData("");
-            }}
-          >
-            Enregistrer modifications
-          </button>
+      if (errorDeleteMag) {
+        console.log("ERREUR DELETE MAGASINS CLUB :", errorDeleteMag);
+        alert("Erreur lors de la mise à jour des magasins");
+        return;
+      }
 
- <button
-  style={{
-    padding: 10,
-    marginRight: 10,
-    background: "#b71c1c",
-    color: "white",
-    border: "none",
-    borderRadius: 6
-  }}
-  onClick={async () => {
-    const ok = window.confirm(
-      "Voulez-vous vraiment supprimer ce club ?"
-    );
-    if (!ok) return;
+      const magasinsAInserer = (magasinsClub || []).map((mag) => ({
+        club_id: clubId,
+        nom: mag.nom,
+        taux: Number(mag.taux) || 0
+      }));
 
-    const clubId = clubSelected.id || clubSelected.identifiant;
+      if (magasinsAInserer.length > 0) {
+        const { error: errorInsertMag } = await supabase
+          .from("magasins_club")
+          .insert(magasinsAInserer);
 
-    const { error: errorMag } = await supabase
-      .from("magasins_club")
-      .delete()
-      .eq("club_id", clubId);
+        if (errorInsertMag) {
+          console.log("ERREUR INSERT MAGASINS CLUB :", errorInsertMag);
+          alert("Erreur lors de l'enregistrement des magasins");
+          return;
+        }
+      }
 
-    if (errorMag) {
-      console.log("ERREUR DELETE MAGASINS :", errorMag);
-      alert("Erreur lors de la suppression des magasins liés");
-      return;
-    }
+      await chargerClubs();
+      await chargerMagasinsClub(clubId);
 
-    const { error: errorContacts } = await supabase
-      .from("contacts")
-      .delete()
-      .eq("club_id", clubId);
+      setScreen("dashboard");
 
-    if (errorContacts) {
-      console.log("ERREUR DELETE CONTACTS :", errorContacts);
-    }
+      setPieceNom("");
+      setPieceType("");
+      setPieceData("");
+    }}
+  >
+    Enregistrer modifications
+  </button>
 
-    const { error: errorHistoriques } = await supabase
-      .from("historiques")
-      .delete()
-      .eq("club_id", clubId);
+  <button
+    style={{
+      padding: 10,
+      marginRight: 10,
+      background: "#b71c1c",
+      color: "white",
+      border: "none",
+      borderRadius: 6
+    }}
+    onClick={async () => {
+      const ok = window.confirm(
+        "Voulez-vous vraiment supprimer ce club ?"
+      );
+      if (!ok) return;
 
-    if (errorHistoriques) {
-      console.log("ERREUR DELETE HISTORIQUES :", errorHistoriques);
-    }
+      const clubId = clubSelected.id || clubSelected.identifiant;
 
-    const { error: errorActions } = await supabase
-      .from("actions")
-      .delete()
-      .eq("club_id", clubId);
+      const { error: errorMag } = await supabase
+        .from("magasins_club")
+        .delete()
+        .eq("club_id", clubId);
 
-    if (errorActions) {
-      console.log("ERREUR DELETE ACTIONS :", errorActions);
-    }
+      if (errorMag) {
+        console.log("ERREUR DELETE MAGASINS :", errorMag);
+        alert("Erreur lors de la suppression des magasins liés");
+        return;
+      }
 
-    const { error: errorPieces } = await supabase
-      .from("pieces_jointes")
-      .delete()
-      .eq("club_id", clubId);
+      const { error: errorContacts } = await supabase
+        .from("contacts")
+        .delete()
+        .eq("club_id", clubId);
 
-    if (errorPieces) {
-      console.log("ERREUR DELETE PIECES :", errorPieces);
-    }
+      if (errorContacts) {
+        console.log("ERREUR DELETE CONTACTS :", errorContacts);
+      }
 
-    const { error } = await supabase
-      .from("clubs")
-      .delete()
-      .eq("id", clubId);
+      const { error: errorHistoriques } = await supabase
+        .from("historiques")
+        .delete()
+        .eq("club_id", clubId);
 
-    if (error) {
-      console.log("ERREUR DELETE CLUB :", error);
-      alert("Erreur lors de la suppression du club");
-      return;
-    }
+      if (errorHistoriques) {
+        console.log("ERREUR DELETE HISTORIQUES :", errorHistoriques);
+      }
 
-    await chargerClubs();
-    await chargerTousContacts();
-    await chargerToutesActions();
+      const { error: errorActions } = await supabase
+        .from("actions")
+        .delete()
+        .eq("club_id", clubId);
 
-    setClubSelected(null);
-    setScreen("dashboard");
+      if (errorActions) {
+        console.log("ERREUR DELETE ACTIONS :", errorActions);
+      }
 
-    setPieceNom("");
-    setPieceType("");
-    setPieceData("");
-  }}
->
-  Supprimer ce club
-</button> 
+      const { error: errorPieces } = await supabase
+        .from("pieces_jointes")
+        .delete()
+        .eq("club_id", clubId);
 
-          <button
-            style={{ padding: 10 }}
-            onClick={() => {
-              setScreen("dashboard");
-              setPieceNom("");
-              setPieceType("");
-              setPieceData("");
-              setAlerteDoublonContact("");
-            }}
-          >
-            Retour
-          </button>
-        </div>
-      </div>
+      if (errorPieces) {
+        console.log("ERREUR DELETE PIECES :", errorPieces);
+      }
+
+      const { error } = await supabase
+        .from("clubs")
+        .delete()
+        .eq("id", clubId);
+
+      if (error) {
+        console.log("ERREUR DELETE CLUB :", error);
+        alert("Erreur lors de la suppression du club");
+        return;
+      }
+
+      await chargerClubs();
+      await chargerTousContacts();
+      await chargerToutesActions();
+
+      setClubSelected(null);
+      setScreen("dashboard");
+
+      setPieceNom("");
+      setPieceType("");
+      setPieceData("");
+    }}
+  >
+    Supprimer ce club
+  </button>
+
+  <button
+    style={{ padding: 10 }}
+    onClick={() => {
+      setScreen("dashboard");
+      setPieceNom("");
+      setPieceType("");
+      setPieceData("");
+      setAlerteDoublonContact("");
+    }}
+  >
+    Retour
+  </button>
+</div>
+ </div>
+
     );
   }
+   /* =========================================================
+  BLOC 17 - RENDU ECRAN CREATION CLUB
+========================================================= */ 
   if (userConnected && screen === "club") {
     const totalMagCreation = totalMagasins(magasinsCreation);
 
@@ -2346,408 +3066,1214 @@ const nouveauClub = {
       </div>
     );
   }
+/* =========================================================
+  BLOC 17B - RENDU ECRAN OBJECTIFS
+========================================================= */
+if (userConnected === "Bruno" && screen === "objectifs") {
+  const moisExercice = [
+    { label: "Avril", mois: 4 },
+    { label: "Mai", mois: 5 },
+    { label: "Juin", mois: 6 },
+    { label: "Juillet", mois: 7 },
+    { label: "Août", mois: 8 },
+    { label: "Septembre", mois: 9 },
+    { label: "Octobre", mois: 10 },
+    { label: "Novembre", mois: 11 },
+    { label: "Décembre", mois: 12 },
+    { label: "Janvier", mois: 1 },
+    { label: "Février", mois: 2 },
+    { label: "Mars", mois: 3 }
+  ];
 
-  if (userConnected) {
-    const planningUtilisateur =
-      commercialActif === "Toute l'équipe"
-        ? planning
-        : planning.filter((ligne) => ligne.commercial === commercialActif);
+  function getAnneeDuMoisExercice(mois, exerciceDebut) {
+    return mois >= 4 ? exerciceDebut : exerciceDebut + 1;
+  }
 
-    const totalAdh = clubsFiltres.reduce(
-      (sum, c) => sum + Number(c.adherents || 0),
-      0
-    );
+  function getObjectifLigne(commercial, exerciceDebut, mois, indicateur) {
+    const annee = getAnneeDuMoisExercice(mois, exerciceDebut);
 
-    return (
-      <div style={stylePage}>
-        <div
-          style={{
-            background: "white",
-            padding: 20,
-            borderRadius: 12,
-            marginBottom: 20,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 20,
-            flexWrap: "wrap"
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <img
-              src={logo}
-              alt="Logo"
-              style={{
-                width: 60,
-                height: "auto",
-                display: "block"
-              }}
-            />
-            <div>
-              <h2 style={{ margin: 0 }}>CRM Clubs</h2>
-              <div>
-                Commercial connecté : <strong>{userConnected}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <button
-              style={{ padding: 10, marginRight: 10 }}
-              onClick={() => setScreen("club")}
-            >
-              + Nouveau club
-            </button>
-
-            <button
-              style={{ padding: 10, marginRight: 10 }}
-              onClick={async () => {
-                await chargerPlanning();
-                setScreen("planning");
-              }}
-            >
-              Planning
-            </button>
-
-            <button
-              style={{ padding: 10 }}
-              onClick={exportClubsCSV}
-            >
-              Export Excel
-            </button>
-          </div>
-        </div>
-
-        <div
-          style={{ display: "flex", gap: 20, marginBottom: 20, flexWrap: "wrap" }}
-        >
-          <div
-            style={{
-              flex: 1,
-              minWidth: 180,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>Nombre de clubs</div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalClubs}</div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 180,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>Total adhérents</div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalAdh}</div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 180,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>
-              Potentiel total TTC
-            </div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>
-              {potentielTotal} €
-            </div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 320,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>
-              Actions / Offres / Commandes / Livraisons / Facturations / Relances
-            </div>
-            <div style={{ fontSize: 20, fontWeight: "bold" }}>
-              {totalActions} / {totalOffres} / {totalCommandes} / {totalLivraisons} / {totalFacturations} / {totalRelances}
-            </div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 220,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>Livraisons TTC</div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>
-              {totalLivraisonsTTC} €
-            </div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 220,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>
-              Montant facturé TTC
-            </div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>
-              {totalFacturesTTC} €
-            </div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 220,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>Montant payé TTC</div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>
-              {totalPayesTTC} €
-            </div>
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 240,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#777" }}>
-              Solde restant à encaisser
-            </div>
-            <div style={{ fontSize: 26, fontWeight: "bold" }}>
-              {soldeRestantEncaisser} €
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "white",
-            padding: 20,
-            borderRadius: 12,
-            marginBottom: 20
-          }}
-        >
-          <h3>Filtres et recherche</h3>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <input
-              style={{ padding: 10, width: 320 }}
-              placeholder="Code club, nom club, ville, sport, nom contact, téléphone, mail"
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-            />
-
-            <select
-              style={{ padding: 10, width: 220 }}
-              value={filtreCommercial}
-              onChange={(e) => setFiltreCommercial(e.target.value)}
-            >
-              <option>Moi</option>
-              <option>Adrien</option>
-              <option>Hervé</option>
-              <option>Bruno</option>
-              <option>Arbresle</option>
-              <option>Confluence</option>
-              <option>Compta</option>
-              <option>Toute l'équipe</option>
-            </select>
-
-            <select
-              style={{ padding: 10, width: 220 }}
-              value={filtreSport}
-              onChange={(e) => setFiltreSport(e.target.value)}
-            >
-              <option>Tous les sports</option>
-              {sportsOptions.map((sport) => (
-                <option key={sport} value={sport}>
-                  {sport}
-                </option>
-              ))}
-            </select>
-
-            <select
-              style={{ padding: 10, width: 240 }}
-              value={filtreFinancier}
-              onChange={(e) => setFiltreFinancier(e.target.value)}
-            >
-              <option>Tous</option>
-              <option>Livré non facturé</option>
-              <option>Facturé non payé</option>
-            </select>
-
-            <select
-              style={{ padding: 10, width: 220 }}
-              value={filtrePeriode}
-              onChange={(e) => setFiltrePeriode(e.target.value)}
-            >
-<option>Toutes périodes</option>
-<option>Semaine</option>
-<option>Mois</option>
-<option>Depuis telle date</option>
-            </select>
-
-            {filtrePeriode === "Depuis telle date" && (
-              <input
-                type="date"
-                style={{ padding: 10 }}
-                value={dateDepuis}
-                onChange={(e) => setDateDepuis(e.target.value)}
-              />
-            )}
-          </div>
-        </div>
-
-        <div
-          style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}
-        >
-          <div
-            style={{
-              flex: 2,
-              minWidth: 420,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <h3>Liste des clubs</h3>
-
-            {clubsFiltres.map((club, index) => {
-              const { totalLivre, totalFacture, totalPaye } = getTotauxClub(club);
-              const badgeLivreNonFacture = totalLivre > totalFacture;
-              const badgeFactureNonPaye = totalFacture > totalPaye;
-
-              return (
-                <div
-                  key={club.id || index}
-                  style={{
-                    borderBottom: "1px solid #eee",
-                    padding: 12,
-                    cursor: "pointer"
-                  }}
-                  onClick={async () => {
-                    await chargerDetailClub(club);
-                    setScreen("detailClub");
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      flexWrap: "wrap"
-                    }}
-                  >
-                    <strong>{club.code}</strong>
-                    <span>
-                      — {club.nom} — {club.ville} — {club.sport || "Sans sport"} —{" "}
-                      {club.adherents || 0} adh — {club.potentiel} € —{" "}
-                      {club.commercial}
-                    </span>
-
-                    {badgeLivreNonFacture && (
-                      <span
-                        style={{
-                          background: "#ff9800",
-                          color: "white",
-                          padding: "4px 8px",
-                          borderRadius: 12,
-                          fontSize: 12,
-                          fontWeight: "bold"
-                        }}
-                      >
-                        🟠 Livré non facturé
-                      </span>
-                    )}
-
-                    {badgeFactureNonPaye && (
-                      <span
-                        style={{
-                          background: "#d32f2f",
-                          color: "white",
-                          padding: "4px 8px",
-                          borderRadius: 12,
-                          fontSize: 12,
-                          fontWeight: "bold"
-                        }}
-                      >
-                        🔴 Facturé non payé
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {clubsFiltres.length === 0 && (
-              <div style={{ padding: 12 }}>Aucun club trouvé.</div>
-            )}
-          </div>
-
-          <div
-            style={{
-              flex: 1,
-              minWidth: 320,
-              background: "white",
-              padding: 20,
-              borderRadius: 12
-            }}
-          >
-            <h3>Planning semaine</h3>
-
-            {planningUtilisateur.slice(0, 5).map((ligne) => (
-              <div
-                key={ligne.id}
-                style={{
-                  border: "1px solid #ddd",
-                  padding: 10,
-                  marginBottom: 10,
-                  background: "#fffbe6",
-                  borderRadius: 8
-                }}
-              >
-                <div><strong>{ligne.jour}</strong> - {ligne.type}</div>
-                <div>{ligne.clubCode} - {ligne.clubNom}</div>
-                <div>{ligne.commentaire}</div>
-                <div><em>{ligne.commercial}</em></div>
-              </div>
-            ))}
-
-            {planningUtilisateur.length === 0 && (
-              <div>Aucune ligne de planning.</div>
-            )}
-          </div>
-        </div>
-      </div>
+    return objectifs.find(
+      (obj) =>
+        String(obj.commercial || "").toLowerCase() ===
+          String(commercial || "").toLowerCase() &&
+        String(obj.indicateur || "").toLowerCase() ===
+          String(indicateur || "").toLowerCase() &&
+        Number(obj.annee_reference) === Number(annee) &&
+        Number(obj.mois) === Number(mois)
     );
   }
 
+  function getCANmoins1(commercial, exerciceDebut, mois) {
+    const anneeNMoins1 = getAnneeDuMoisExercice(mois, exerciceDebut - 1);
+
+    const actionsNMoins1 = toutesActions.filter((a) => {
+      if (a.type !== "Payé") return false;
+      if (!a.date) return false;
+
+      const d = new Date(a.date + "T00:00:00");
+      const moisAction = d.getMonth() + 1;
+      const anneeAction = d.getFullYear();
+
+      if (moisAction !== mois || anneeAction !== anneeNMoins1) {
+        return false;
+      }
+
+      if (commercial === "Toute l'équipe") return true;
+
+      const club = clubs.find(
+        (c) => String(c.id || c.identifiant) === String(a.club_id)
+      );
+
+      return (
+        club &&
+        String(club.commercial || "").toLowerCase() ===
+          String(commercial || "").toLowerCase()
+      );
+    });
+
+    return actionsNMoins1.reduce(
+      (sum, a) => sum + (Number(a.montantTTC) || 0),
+      0
+    );
+  }
+
+  function getVisitesNmoins1(commercial, exerciceDebut, mois) {
+    const anneeNMoins1 = getAnneeDuMoisExercice(mois, exerciceDebut - 1);
+
+    const visitesNMoins1 = toutesActions.filter((a) => {
+      if (a.type !== "Visite club") return false;
+      if (!a.date) return false;
+
+      const d = new Date(a.date + "T00:00:00");
+      const moisAction = d.getMonth() + 1;
+      const anneeAction = d.getFullYear();
+
+      if (moisAction !== mois || anneeAction !== anneeNMoins1) {
+        return false;
+      }
+
+      if (commercial === "Toute l'équipe") return true;
+
+      const club = clubs.find(
+        (c) => String(c.id || c.identifiant) === String(a.club_id)
+      );
+
+      return (
+        club &&
+        String(club.commercial || "").toLowerCase() ===
+          String(commercial || "").toLowerCase()
+      );
+    });
+
+    return visitesNMoins1.length;
+  }
+
+  function calculerPourcentageProgression(objectif, nMoins1) {
+    const base = Number(nMoins1) || 0;
+    const cible = Number(objectif) || 0;
+
+    if (base === 0) return "-";
+
+    const progression = ((cible - base) / base) * 100;
+    return `${progression.toFixed(1)}%`;
+  }
+
+  async function enregistrerObjectifMois(mois, indicateur, valeurObjectif) {
+    const exerciceDebut = Number(objectifExerciceSelection);
+    const anneeReferenceLigne = getAnneeDuMoisExercice(mois, exerciceDebut);
+
+    const objectifExistant = getObjectifLigne(
+      objectifCommercialSelection,
+      exerciceDebut,
+      mois,
+      indicateur
+    );
+
+    if (objectifExistant) {
+      const { error } = await supabase
+        .from("objectifs")
+        .update({
+          valeur_objectif: Number(valeurObjectif) || 0,
+          exercice_fiscal: exerciceDebut
+        })
+        .eq("id", objectifExistant.id);
+
+      if (error) {
+        console.log("ERREUR UPDATE OBJECTIF :", error);
+        alert("Erreur lors de la mise à jour de l'objectif");
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("objectifs")
+        .insert([
+          {
+            commercial: objectifCommercialSelection,
+            indicateur: indicateur,
+            mois: mois,
+            annee_reference: anneeReferenceLigne,
+            exercice_fiscal: exerciceDebut,
+            valeur_objectif: Number(valeurObjectif) || 0
+          }
+        ]);
+
+      if (error) {
+        console.log("ERREUR INSERT OBJECTIF :", error);
+        alert("Erreur lors de l'enregistrement de l'objectif");
+        return;
+      }
+    }
+
+    await chargerObjectifs();
+  }
+
+  return (
+    <div style={stylePage}>
+      <div
+        style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 12,
+          marginBottom: 20
+        }}
+      >
+        <h2>Tableau des objectifs</h2>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 15 }}>
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={objectifCommercialSelection}
+            onChange={(e) => setObjectifCommercialSelection(e.target.value)}
+          >
+            <option>Bruno</option>
+            <option>Adrien</option>
+            <option>Hervé</option>
+            <option>Arbresle</option>
+            <option>Confluence</option>
+            <option>Compta</option>
+            <option>Toute l'équipe</option>
+          </select>
+
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={objectifExerciceSelection}
+            onChange={(e) => setObjectifExerciceSelection(e.target.value)}
+          >
+            <option value="2024">Ex24-25</option>
+            <option value="2025">Ex25-26</option>
+            <option value="2026">Ex26-27</option>
+            <option value="2027">Ex27-28</option>
+          </select>
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 12,
+          overflowX: "auto"
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#f5f5f5" }}>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "left" }}>
+                Mois
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                CA encaissé N-1
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                Objectif CA
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                % prog OBJ CA
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                Visites N-1
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                Objectif visites
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "right" }}>
+                % prog OBJ visites
+              </th>
+              <th style={{ padding: 10, border: "1px solid #ddd", textAlign: "center" }}>
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {moisExercice.map((ligne) => {
+              const objectifCAExistant = getObjectifLigne(
+                objectifCommercialSelection,
+                Number(objectifExerciceSelection),
+                ligne.mois,
+                "ca_encaisse_ttc"
+              );
+
+              const objectifVisitesExistant = getObjectifLigne(
+                objectifCommercialSelection,
+                Number(objectifExerciceSelection),
+                ligne.mois,
+                "visites"
+              );
+
+              const valeurObjectifCA = objectifCAExistant
+                ? Number(objectifCAExistant.valeur_objectif) || 0
+                : 0;
+
+              const valeurObjectifVisites = objectifVisitesExistant
+                ? Number(objectifVisitesExistant.valeur_objectif) || 0
+                : 0;
+
+              const caNMoins1 = getCANmoins1(
+                objectifCommercialSelection,
+                Number(objectifExerciceSelection),
+                ligne.mois
+              );
+
+              const visitesNMoins1 = getVisitesNmoins1(
+                objectifCommercialSelection,
+                Number(objectifExerciceSelection),
+                ligne.mois
+              );
+
+              const progressionCA = calculerPourcentageProgression(
+                valeurObjectifCA,
+                caNMoins1
+              );
+
+              const progressionVisites = calculerPourcentageProgression(
+                valeurObjectifVisites,
+                visitesNMoins1
+              );
+
+              return (
+                <tr
+                  key={`${objectifCommercialSelection}-${objectifExerciceSelection}-${ligne.mois}`}
+                >
+                  <td style={{ padding: 10, border: "1px solid #ddd" }}>
+                    {ligne.label}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    {caNMoins1} €
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    <input
+                      type="number"
+                      defaultValue={valeurObjectifCA}
+                      id={`objectif-ca-${objectifCommercialSelection}-${objectifExerciceSelection}-${ligne.mois}`}
+                      style={{ padding: 8, width: 120, textAlign: "right" }}
+                    />
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    {progressionCA}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    {visitesNMoins1}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    <input
+                      type="number"
+                      defaultValue={valeurObjectifVisites}
+                      id={`objectif-visites-${objectifCommercialSelection}-${objectifExerciceSelection}-${ligne.mois}`}
+                      style={{ padding: 8, width: 120, textAlign: "right" }}
+                    />
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "right"
+                    }}
+                  >
+                    {progressionVisites}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      border: "1px solid #ddd",
+                      textAlign: "center"
+                    }}
+                  >
+                    <button
+                      style={{
+                        padding: 8,
+                        background: "#1565c0",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 6
+                      }}
+                      onClick={async () => {
+                        const inputCA = document.getElementById(
+                          `objectif-ca-${objectifCommercialSelection}-${objectifExerciceSelection}-${ligne.mois}`
+                        );
+                        const inputVisites = document.getElementById(
+                          `objectif-visites-${objectifCommercialSelection}-${objectifExerciceSelection}-${ligne.mois}`
+                        );
+
+                        const valeurCA = inputCA ? inputCA.value : 0;
+                        const valeurVisites = inputVisites ? inputVisites.value : 0;
+
+                        await enregistrerObjectifMois(
+                          ligne.mois,
+                          "ca_encaisse_ttc",
+                          valeurCA
+                        );
+
+                        await enregistrerObjectifMois(
+                          ligne.mois,
+                          "visites",
+                          valeurVisites
+                        );
+                      }}
+                    >
+                      Enregistrer
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div style={{ marginTop: 20 }}>
+          <button
+            style={{ padding: 10 }}
+            onClick={() => setScreen("dashboard")}
+          >
+            Retour dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+/* =========================================================
+  BLOC 18 - RENDU DASHBOARD PRINCIPAL
+========================================================= */
+if (userConnected) {
+  const planningUtilisateur =
+    commercialActif === "Toute l'équipe"
+      ? planning
+      : planning.filter((ligne) => ligne.commercial === commercialActif);
+
+  const totalAdh = clubsFiltres.reduce(
+    (sum, c) => sum + Number(c.adherents || 0),
+    0
+  );
+
+  return (
+    <div style={stylePage}>
+      <div
+        style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 12,
+          marginBottom: 20,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 20,
+          flexWrap: "wrap",
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.12)"
+        }}
+      >
+        {/* ===== GAUCHE LOGO ===== */}
+        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+          <img
+            src={logo}
+            alt="Logo"
+            style={{
+              width: 60,
+              height: "auto",
+              display: "block"
+            }}
+          />
+          <div>
+            <h2 style={{ margin: 0 }}>CRM Clubs</h2>
+            <div>
+              Commercial connecté : <strong>{userConnected}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== DROITE BOUTONS ===== */}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          
+          <button
+            style={{ padding: 10 }}
+            onClick={() => setScreen("club")}
+          >
+            + Nouveau club
+          </button>
+
+          <button
+            style={{ padding: 10 }}
+            onClick={async () => {
+              await chargerPlanning();
+              setScreen("planning");
+            }}
+          >
+            Planning
+          </button>
+
+          {userConnected === "Bruno" && (
+            <button
+              style={{ padding: 10 }}
+              onClick={() => {
+                setObjectifCommercialSelection("Bruno");
+                setObjectifExerciceSelection("2026");
+                setScreen("objectifs");
+              }}
+            >
+              Objectifs
+            </button>
+          )}
+
+          <button
+            style={{ padding: 10 }}
+            onClick={exportClubsCSV}
+          >
+            Export Excel
+          </button>
+
+          {filtreBlocDashboard !== "Tous" && (
+            <button
+              style={{
+                padding: 10,
+                background: "#ef6c00",
+                color: "white",
+                border: "none",
+                borderRadius: 6
+              }}
+              onClick={() => {
+                setFiltreBlocDashboard("Tous");
+              }}
+            >
+              RAZ filtre bloc
+            </button>
+          )}
+
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "2.2fr 1fr 2.2fr 1fr",
+          gap: 20,
+          marginBottom: 20,
+          marginTop: 10
+        }}
+      >
+{/* ===================== CA MOIS ===================== */}
+<div
+  onClick={() => {
+    setFiltreBlocDashboard("CA_MOIS");
+    setFiltrePeriode("Mois");
+  }}
+  style={{
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    cursor: "pointer"
+  }}
+>
+  <h3>CA du mois</h3>
+
+  <div>Objectif : {objectifMoisCA} €</div>
+  <div>Réalisé : {realiseMoisCA} €</div>
+  <div>Écart : {ecartMoisCA} €</div>
+  <div>% : {tauxMoisCA.toFixed(1)}%</div>
+  <div>
+    Statut : <strong>{statutMoisCA}</strong>
+  </div>
+
+  {filtreBlocDashboard === "CA_MOIS" && (
+    <div style={{ marginTop: 10 }}>
+      <span
+        style={{
+          background: "#ef6c00",
+          color: "white",
+          padding: "6px 10px",
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: "bold"
+        }}
+      >
+        ⌛ Vue filtrée
+      </span>
+    </div>
+  )}
+
+  <div
+    style={{
+      marginTop: 15,
+      height: 20,
+      background: "#eee",
+      borderRadius: 10,
+      overflow: "hidden",
+      display: "flex"
+    }}
+  >
+    <div
+      style={{
+        width: `${largeurVertMois}%`,
+        height: "100%",
+        background: statutMoisCA === "Retard" ? "#ff9800" : "#4caf50"
+      }}
+    />
+
+    {tauxMoisCA > 100 && (
+      <div
+        style={{
+          width: `${largeurBleuMois}%`,
+          height: "100%",
+          background: "#2196f3"
+        }}
+      />
+    )}
+  </div>
+
+  {tauxMoisCA > 100 && (
+    <div style={{ marginTop: 8, color: "#2196f3", fontWeight: "bold" }}>
+      Dépassé de {(tauxMoisCA - 100).toFixed(1)}%
+    </div>
+  )}
+</div>
+{/* ===================== VISITES MOIS ===================== */}
+<div
+  onClick={() => {
+    setFiltreBlocDashboard("VISITES_MOIS");
+    setFiltrePeriode("Mois");
+  }}
+  style={{
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    cursor: "pointer"
+  }}
+>
+          <h3>Visites du mois</h3>
+
+          <div>Objectif : {objectifMoisVisites}</div>
+          <div>Réalisé : {realiseMoisVisites}</div>
+          <div>Écart : {ecartMoisVisites}</div>
+          <div>% : {tauxMoisVisites.toFixed(1)}%</div>
+          <div>
+            Statut : <strong>{statutMoisVisites}</strong>
+          </div>
+{filtreBlocDashboard === "VISITES_MOIS" && (
+  <div style={{ marginTop: 10 }}>
+    <span
+      style={{
+        background: "#ef6c00",
+        color: "white",
+        padding: "6px 10px",
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: "bold",
+        display: "inline-block"
+      }}
+    >
+      ⌛ Vue filtrée
+    </span>
+  </div>
+)}
+          <div
+            style={{
+              marginTop: 15,
+              height: 20,
+              background: "#eee",
+              borderRadius: 10,
+              overflow: "hidden",
+              display: "flex"
+            }}
+          >
+            <div
+              style={{
+                width: `${largeurVertMoisVisites}%`,
+                height: "100%",
+                background:
+                  statutMoisVisites === "Retard" ? "#ff9800" : "#4caf50"
+              }}
+            />
+
+            {tauxMoisVisites > 100 && (
+              <div
+                style={{
+                  width: `${largeurBleuMoisVisites}%`,
+                  height: "100%",
+                  background: "#2196f3"
+                }}
+              />
+            )}
+          </div>
+
+          {tauxMoisVisites > 100 && (
+            <div style={{ marginTop: 8, color: "#2196f3", fontWeight: "bold" }}>
+              Dépassé de {(tauxMoisVisites - 100).toFixed(1)}%
+            </div>
+          )}
+        </div>
+
+        {/* ===================== CA CUMUL ===================== */}
+<div
+  onClick={() => {
+    setFiltreBlocDashboard("CA_CUMUL");
+    setFiltrePeriode("Exercice fiscal");
+  }}
+  style={{
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    cursor: "pointer"
+  }}
+>
+          <h3>Cumul CA</h3>
+
+          <div>Objectif : {objectifCumulCA} €</div>
+          <div>Réalisé : {realiseCumulCA} €</div>
+          <div>Écart : {ecartCumulCA} €</div>
+          <div>% : {tauxCumulCA.toFixed(1)}%</div>
+          <div>
+            Statut : <strong>{statutCumulCA}</strong>
+          </div>
+{filtreBlocDashboard === "CA_CUMUL" && (
+  <div style={{ marginTop: 10 }}>
+    <span
+      style={{
+        background: "#ef6c00",
+        color: "white",
+        padding: "6px 10px",
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: "bold"
+      }}
+    >
+      ⌛ Vue filtrée
+    </span>
+  </div>
+)}
+          <div
+            style={{
+              marginTop: 15,
+              height: 20,
+              background: "#eee",
+              borderRadius: 10,
+              overflow: "hidden",
+              display: "flex"
+            }}
+          >
+            <div
+              style={{
+                width: `${largeurVertCumul}%`,
+                height: "100%",
+                background: statutCumulCA === "Retard" ? "#ff9800" : "#4caf50"
+              }}
+            />
+
+            {tauxCumulCA > 100 && (
+              <div
+                style={{
+                  width: `${largeurBleuCumul}%`,
+                  height: "100%",
+                  background: "#2196f3"
+                }}
+              />
+            )}
+          </div>
+
+          {tauxCumulCA > 100 && (
+            <div style={{ marginTop: 8, color: "#2196f3", fontWeight: "bold" }}>
+              Dépassé de {(tauxCumulCA - 100).toFixed(1)}%
+            </div>
+          )}
+        </div>
+
+
+{/* ===================== VISITES CUMUL ===================== */}
+<div
+  onClick={() => {
+    setFiltreBlocDashboard("VISITES_CUMUL");
+    setFiltrePeriode("Exercice fiscal");
+  }}
+  style={{
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    cursor: "pointer"
+  }}
+>
+  <h3>Cumul visites</h3>
+
+  <div>Objectif : {objectifCumulVisites}</div>
+  <div>Réalisé : {realiseCumulVisites}</div>
+  <div>Écart : {ecartCumulVisites}</div>
+  <div>% : {tauxCumulVisites.toFixed(1)}%</div>
+  <div>
+    Statut : <strong>{statutCumulVisites}</strong>
+  </div>
+
+  {filtreBlocDashboard === "VISITES_CUMUL" && (
+    <div style={{ marginTop: 10 }}>
+      <span
+        style={{
+          background: "#ef6c00",
+          color: "white",
+          padding: "6px 10px",
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: "bold"
+        }}
+      >
+        ⌛ Vue filtrée
+      </span>
+    </div>
+  )}
+
+  <div
+    style={{
+      marginTop: 15,
+      height: 20,
+      background: "#eee",
+      borderRadius: 10,
+      overflow: "hidden",
+      display: "flex"
+    }}
+  >
+    <div
+      style={{
+        width: `${largeurVertCumulVisites}%`,
+        height: "100%",
+        background:
+          statutCumulVisites === "Retard" ? "#ff9800" : "#4caf50"
+      }}
+    />
+
+    {tauxCumulVisites > 100 && (
+      <div
+        style={{
+          width: `${largeurBleuCumulVisites}%`,
+          height: "100%",
+          background: "#2196f3"
+        }}
+      />
+    )}
+  </div>
+
+  {tauxCumulVisites > 100 && (
+    <div style={{ marginTop: 8, color: "#2196f3", fontWeight: "bold" }}>
+      Dépassé de {(tauxCumulVisites - 100).toFixed(1)}%
+    </div>
+  )}
+</div>
+      </div>
+
+      <div
+  style={{
+    display: "flex",
+    gap: 14,
+    marginBottom: 20,
+    flexWrap: "wrap",
+    alignItems: "stretch"
+  }}
+>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 160,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>Nombre de clubs</div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalClubs}</div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 160,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>Total adhérents</div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>{totalAdh}</div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 160,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>
+            Potentiel total TTC
+          </div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>
+            {potentielTotal} €
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 360,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>
+            Actions / Offres / Commandes / Livraisons / Facturations / Relances
+          </div>
+          <div style={{ fontSize: 20, fontWeight: "bold" }}>
+            {totalActions} / {totalOffres} / {totalCommandes} / {totalLivraisons} / {totalFacturations} / {totalRelances}
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 220,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>Livraisons TTC</div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>
+            {totalLivraisonsTTC} €
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 220,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>
+            Montant facturé TTC
+          </div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>
+            {totalFacturesTTC} €
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 220,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>Montant payé TTC</div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>
+            {totalPayesTTC} €
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 240,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <div style={{ fontSize: 13, color: "#777" }}>
+            Solde restant à encaisser
+          </div>
+          <div style={{ fontSize: 26, fontWeight: "bold" }}>
+            {soldeRestantEncaisser} €
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 12,
+          marginBottom: 20
+        }}
+      >
+        <h3>Filtres et recherche</h3>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input
+            style={{ padding: 10, width: 320 }}
+            placeholder="Code club, nom club, ville, sport, nom contact, téléphone, mail"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+          />
+
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={filtreCommercial}
+            onChange={(e) => setFiltreCommercial(e.target.value)}
+          >
+            <option>Moi</option>
+            <option>Adrien</option>
+            <option>Hervé</option>
+            <option>Bruno</option>
+            <option>Arbresle</option>
+            <option>Confluence</option>
+            <option>Compta</option>
+            <option>Toute l'équipe</option>
+          </select>
+
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={filtreSport}
+            onChange={(e) => setFiltreSport(e.target.value)}
+          >
+            <option>Tous les sports</option>
+            {sportsOptions.map((sport) => (
+              <option key={sport} value={sport}>
+                {sport}
+              </option>
+            ))}
+          </select>
+
+          <select
+            style={{ padding: 10, width: 240 }}
+            value={filtreFinancier}
+            onChange={(e) => setFiltreFinancier(e.target.value)}
+          >
+            <option>Tous</option>
+            <option>Livré non facturé</option>
+            <option>Facturé non payé</option>
+          </select>
+
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={filtrePeriode}
+            onChange={(e) => setFiltrePeriode(e.target.value)}
+          >
+            <option>Toutes périodes</option>
+            <option>Semaine</option>
+            <option>Mois</option>
+            <option>Exercice fiscal</option>
+            <option>Depuis telle date</option>
+          </select>
+
+          {filtrePeriode === "Depuis telle date" && (
+            <input
+              type="date"
+              style={{ padding: 10 }}
+              value={dateDepuis}
+              onChange={(e) => setDateDepuis(e.target.value)}
+            />
+          )}
+
+          <select
+            style={{ padding: 10, width: 220 }}
+            value={modeObjectif}
+            onChange={(e) => setModeObjectif(e.target.value)}
+          >
+            <option>Exercice fiscal</option>
+            <option>Année civile</option>
+          </select>
+
+          {modeObjectif === "Exercice fiscal" && (
+            <select
+              style={{ padding: 10, width: 220 }}
+              value={exerciceSelectionne}
+              onChange={(e) => setExerciceSelectionne(e.target.value)}
+            >
+              <option value="2024">Ex24-25</option>
+              <option value="2025">Ex25-26</option>
+              <option value="2026">Ex26-27</option>
+              <option value="2027">Ex27-28</option>
+            </select>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}
+      >
+        <div
+          style={{
+           
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <h3>Liste des clubs</h3>
+
+          {clubsFiltres.map((club, index) => {
+            const { totalLivre, totalFacture, totalPaye } = getTotauxClub(club);
+            const badgeLivreNonFacture = totalLivre > totalFacture;
+            const badgeFactureNonPaye = totalFacture > totalPaye;
+
+            return (
+              <div
+                key={club.id || index}
+                style={{
+                  borderBottom: "1px solid #eee",
+                  padding: 12,
+                  cursor: "pointer"
+                }}
+                onClick={async () => {
+                  await chargerDetailClub(club);
+                  setScreen("detailClub");
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap"
+                  }}
+                >
+                  <strong>{club.code}</strong>
+                  <span>
+                    — {club.nom} — {club.ville} — {club.sport || "Sans sport"} —{" "}
+                    {club.adherents || 0} adh — {club.potentiel} € —{" "}
+                    {club.commercial}
+                  </span>
+
+                  {badgeLivreNonFacture && (
+                    <span
+                      style={{
+                        background: "#ff9800",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: "bold"
+                      }}
+                    >
+                      🟠 Livré non facturé
+                    </span>
+                  )}
+
+                  {badgeFactureNonPaye && (
+                    <span
+                      style={{
+                        background: "#d32f2f",
+                        color: "white",
+                        padding: "4px 8px",
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: "bold"
+                      }}
+                    >
+                      🔴 Facturé non payé
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {clubsFiltres.length === 0 && (
+            <div style={{ padding: 12 }}>Aucun club trouvé.</div>
+          )}
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 320,
+            background: "white",
+            padding: 20,
+            borderRadius: 12
+          }}
+        >
+          <h3>Planning semaine</h3>
+
+          {planningUtilisateur.slice(0, 5).map((ligne) => (
+            <div
+              key={ligne.id}
+              style={{
+                border: "1px solid #ddd",
+                padding: 10,
+                marginBottom: 10,
+                background: "#fffbe6",
+                borderRadius: 8
+              }}
+            >
+              <div><strong>{ligne.jour}</strong> - {ligne.type}</div>
+              <div>{ligne.clubCode} - {ligne.clubNom}</div>
+              <div>{ligne.commentaire}</div>
+              <div><em>{ligne.commercial}</em></div>
+            </div>
+          ))}
+
+          {planningUtilisateur.length === 0 && (
+            <div>Aucune ligne de planning.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+   /* =========================================================
+     BLOC 19 - RENDU ECRAN LOGIN
+========================================================= */ 
   return (
     <div
       style={{
@@ -2808,9 +4334,14 @@ const nouveauClub = {
         >
           SE CONNECTER
         </button>
+		<div style={{ marginTop: 10, fontSize: 12, color: "#999" }}>
+			Version {VERSION}
+		</div>
       </div>
     </div>
   );
 }
-
+/* =========================================================
+   BLOC 20 - EXPORT COMPOSANT
+========================================================= */
 export default App; 
