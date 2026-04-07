@@ -5,25 +5,51 @@
 import { useState, useEffect } from "react";
 import logo from "./logo.jpg";
 import { supabase } from "./supabaseClient";
-const VERSION = "v2.0.0";
+const VERSION = "v4.1.0";
 /* =========================================================
    BLOC 2 - DÉBUT COMPOSANT + UTILISATEURS
 ========================================================= */
 function App() {
 /* =========================================================
-   BLOC 2A - UTILISATEURS
+   BLOC 2A - PROFIL UTILISATEUR SUPABASE
 ========================================================= */
-  const utilisateurs = [
-    { login: "adrien", mdp: "vt01", nom: "Adrien" },
-    { login: "herve", mdp: "vt02", nom: "Hervé" },
-    { login: "bruno", mdp: "bf2504", nom: "Bruno" },
-    { login: "arbresle", mdp: "vt03", nom: "Arbresle" },
-    { login: "confluence", mdp: "vt04", nom: "Confluence" },
-    { login: "compta", mdp: "vt05", nom: "Compta" }
-  ];
+async function chargerProfilUtilisateurParId(userId) {
+  if (!userId) return null;
 
-  const [magasinsClub, setMagasinsClub] = useState([]);
-  const [contactsClub, setContactsClub] = useState([]);
+  const { data, error } = await supabase
+    .from("utilisateurs_profils")
+    .select("*")
+    .eq("id", userId)
+    .eq("actif", true)
+    .single();
+
+  if (error) {
+    console.log("ERREUR FETCH PROFIL :", error);
+    return null;
+  }
+
+  return data || null;
+}
+
+async function chargerProfilUtilisateurParUsername(usernameSaisi) {
+  const usernameNettoye = String(usernameSaisi || "").trim().toLowerCase();
+
+  if (!usernameNettoye) return null;
+
+  const { data, error } = await supabase
+    .from("utilisateurs_profils")
+    .select("*")
+    .eq("username", usernameNettoye)
+    .eq("actif", true)
+    .single();
+
+  if (error) {
+    console.log("ERREUR FETCH PROFIL USERNAME :", error);
+    return null;
+  }
+
+  return data || null;
+}
  /* =========================================================
    BLOC 3 - FONCTIONS OUTILS DATE ET PLANNING
 ========================================================= */ 
@@ -66,7 +92,8 @@ function getDateJourPlanning(jour) {
   const [planning, setPlanning] = useState([]);
   const [objectifs, setObjectifs] = useState([]);
   const [allContacts, setAllContacts] = useState([]);
-
+const [magasinsClub, setMagasinsClub] = useState([]);
+const [contactsClub, setContactsClub] = useState([]);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [userConnected, setUserConnected] = useState(null);
@@ -156,13 +183,18 @@ function getDateJourPlanning(jour) {
   const [planningJour, setPlanningJour] = useState("Lundi");
   const [planningType, setPlanningType] = useState("Visite club");
   const [planningCommentaire, setPlanningCommentaire] = useState("");
-
+  const [planningFiltreCommercial, setPlanningFiltreCommercial] = useState("Tous");
+const [planningFiltreSport, setPlanningFiltreSport] = useState("Tous les sports");
+const [planningRechercheClub, setPlanningRechercheClub] = useState("");
+const [filtrePlanningPeriode, setFiltrePlanningPeriode] = useState("Semaine en cours");
+const [planningMoisFiltre, setPlanningMoisFiltre] = useState(moisDuJourInput);
 
   const [filtreCommercial, setFiltreCommercial] = useState("Moi");
   const [filtrePeriode, setFiltrePeriode] = useState("Toutes périodes");
   const [modeObjectif, setModeObjectif] = useState("Exercice fiscal");
   const [exerciceSelectionne, setExerciceSelectionne] = useState("2026");
   const [dateDepuis, setDateDepuis] = useState(dateDuJourInput);
+  const [moisSelectionne, setMoisSelectionne] = useState(moisDuJourInput);
   const [filtreSport, setFiltreSport] = useState("Tous les sports");
   const [filtreFinancier, setFiltreFinancier] = useState("Tous");
   const [filtreBlocDashboard, setFiltreBlocDashboard] = useState("Tous");
@@ -184,16 +216,56 @@ useEffect(() => {
   setPlanningDate(getDateJourPlanning(planningJour));
 }, [planningJour]);
 
-  useEffect(() => {
-    localStorage.setItem("sportsOptions", JSON.stringify(sportsOptions));
-  }, [sportsOptions]);
+useEffect(() => {
+  localStorage.setItem("sportsOptions", JSON.stringify(sportsOptions));
+}, [sportsOptions]);
 
-  useEffect(() => {
-    localStorage.setItem(
-      "historiqueTypeOptions",
-      JSON.stringify(historiqueTypeOptions)
-    );
-  }, [historiqueTypeOptions]);
+useEffect(() => {
+  localStorage.setItem(
+    "historiqueTypeOptions",
+    JSON.stringify(historiqueTypeOptions)
+  );
+}, [historiqueTypeOptions]);
+
+useEffect(() => {
+  const restaurerSession = async () => {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.user?.id) return;
+
+    const profil = await chargerProfilUtilisateurParId(session.user.id);
+
+    if (profil) {
+      setUserConnected(profil);
+      setFiltreCommercial(profil.nom || "Moi");
+    }
+  };
+
+  restaurerSession();
+
+  const {
+    data: { subscription }
+  } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (!session?.user?.id) {
+      setUserConnected(null);
+      setFiltreCommercial("Moi");
+      return;
+    }
+
+    const profil = await chargerProfilUtilisateurParId(session.user.id);
+
+    if (profil) {
+      setUserConnected(profil);
+      setFiltreCommercial(profil.nom || "Moi");
+    }
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 /* =========================================================
    BLOC 6 - CHARGEMENT DES DONNÉES SUPABASE
 ========================================================= */
@@ -414,38 +486,60 @@ useEffect(() => {
     setAllContacts((prev) => prev.filter((c) => c.id !== idContact));
   };
 
-  const handleLogin = () => {
-    const user = utilisateurs.find(
-      (u) => u.login === username && u.mdp === password
-    );
+const handleLogin = async () => {
+  const usernameNettoye = String(username || "").trim().toLowerCase();
+  const passwordNettoye = String(password || "");
 
-    if (user) {
-      setUserConnected(user.nom);
-      setFiltreCommercial(user.nom);
-      return;
-    }
+  if (!usernameNettoye || !passwordNettoye) {
+    alert("Merci de renseigner l'utilisateur et le mot de passe");
+    return;
+  }
 
+  const profil = await chargerProfilUtilisateurParUsername(usernameNettoye);
+
+  if (!profil || !profil.email) {
     alert("Identifiants incorrects");
-  };
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: profil.email,
+    password: passwordNettoye
+  });
+
+  if (error || !data?.user) {
+    console.log("ERREUR LOGIN AUTH :", error);
+    alert("Identifiants incorrects");
+    return;
+  }
+
+  setUserConnected(profil);
+  setFiltreCommercial(profil.nom || "Moi");
+  setPassword("");
+};
+
+const handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.log("ERREUR LOGOUT :", error);
+    alert("Erreur lors de la déconnexion");
+    return;
+  }
+
+  setUserConnected(null);
+  setUsername("");
+  setPassword("");
+  setFiltreCommercial("Moi");
+  setScreen("dashboard");
+  setClubSelected(null);
+};
 /* =========================================================
    BLOC 9 - VARIABLES DÉRIVÉES ET STYLE
 ========================================================= */
   const prochainCodeClub = "CLB" + String(clubs.length + 1).padStart(3, "0");
 
-  const couleurCommercial =
-    userConnected === "Adrien"
-      ? "#800020"
-      : userConnected === "Hervé"
-      ? "#87CEEB"
-      : userConnected === "Bruno"
-      ? "#A9A9A9"
-      : userConnected === "Arbresle"
-      ? "#2E8B57"
-      : userConnected === "Confluence"
-      ? "#FF8C00"
-      : userConnected === "Compta"
-      ? "#4B0082"
-      : "#f2f2f2";
+const couleurCommercial = userConnected?.couleur || "#f2f2f2"; 
 
 const stylePage = {
   minHeight: "100vh",
@@ -454,8 +548,8 @@ const stylePage = {
   fontFamily: "Arial"
 };
 
-  const commercialActif =
-    filtreCommercial === "Moi" ? userConnected : filtreCommercial;
+const commercialActif =
+  filtreCommercial === "Moi" ? userConnected?.nom || "" : filtreCommercial;
 
   const clubsFiltresCommercial =
     commercialActif === "Toute l'équipe"
@@ -474,8 +568,23 @@ function getDateLundiCourant() {
 }
 
 function getDatePremierJourMois() {
+  if (moisSelectionne) {
+    const [annee, mois] = moisSelectionne.split("-").map(Number);
+    return new Date(annee, mois - 1, 1);
+  }
+
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function getDatePremierJourMoisSuivant() {
+  if (moisSelectionne) {
+    const [annee, mois] = moisSelectionne.split("-").map(Number);
+    return new Date(annee, mois, 1);
+  }
+
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1);
 }
 
 function parseInputDate(dateString) {
@@ -504,9 +613,12 @@ function isActionDansPeriode(action) {
     return actionDateObj >= getDateLundiCourant();
   }
 
-  if (filtrePeriode === "Mois") {
-    return actionDateObj >= getDatePremierJourMois();
-  }
+if (filtrePeriode === "Mois") {
+  return (
+    actionDateObj >= getDatePremierJourMois() &&
+    actionDateObj < getDatePremierJourMoisSuivant()
+  );
+}
 
   if (filtrePeriode === "Exercice fiscal") {
     const dateRef = parseInputDate(dateDepuis) || new Date();
@@ -521,7 +633,96 @@ function isActionDansPeriode(action) {
 
   return true;
 }
+function getLundiSemaine(dateBase = new Date()) {
+  const d = new Date(dateBase);
+  const jour = d.getDay();
+  const diff = jour === 0 ? -6 : 1 - jour;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
+function getDimancheSemaine(dateBase = new Date()) {
+  const lundi = getLundiSemaine(dateBase);
+  const dimanche = new Date(lundi);
+  dimanche.setDate(lundi.getDate() + 6);
+  dimanche.setHours(23, 59, 59, 999);
+  return dimanche;
+}
+
+function addDays(dateBase, nbJours) {
+  const d = new Date(dateBase);
+  d.setDate(d.getDate() + nbJours);
+  return d;
+}
+
+function getPremierJourMoisDepuisDate(dateBase = new Date()) {
+  return new Date(dateBase.getFullYear(), dateBase.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function getDernierJourMoisDepuisDate(dateBase = new Date()) {
+  return new Date(dateBase.getFullYear(), dateBase.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+function isPlanningDansPeriode(ligne) {
+  if (!ligne?.date_rdv) return false;
+
+  const dateLigne = new Date(`${ligne.date_rdv}T00:00:00`);
+  if (isNaN(dateLigne.getTime())) return false;
+
+  const aujourdHui = new Date();
+
+  if (filtrePlanningPeriode === "Semaine en cours") {
+    const debut = getLundiSemaine(aujourdHui);
+    const fin = getDimancheSemaine(aujourdHui);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Semaine précédente") {
+    const base = addDays(aujourdHui, -7);
+    const debut = getLundiSemaine(base);
+    const fin = getDimancheSemaine(base);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Semaine suivante") {
+    const base = addDays(aujourdHui, 7);
+    const debut = getLundiSemaine(base);
+    const fin = getDimancheSemaine(base);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Mois en cours") {
+    const debut = getPremierJourMoisDepuisDate(aujourdHui);
+    const fin = getDernierJourMoisDepuisDate(aujourdHui);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Mois précédent") {
+    const base = new Date(aujourdHui.getFullYear(), aujourdHui.getMonth() - 1, 1);
+    const debut = getPremierJourMoisDepuisDate(base);
+    const fin = getDernierJourMoisDepuisDate(base);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Mois suivant") {
+    const base = new Date(aujourdHui.getFullYear(), aujourdHui.getMonth() + 1, 1);
+    const debut = getPremierJourMoisDepuisDate(base);
+    const fin = getDernierJourMoisDepuisDate(base);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  if (filtrePlanningPeriode === "Date du mois") {
+    if (!planningMoisFiltre) return true;
+
+    const [annee, mois] = planningMoisFiltre.split("-").map(Number);
+    const debut = new Date(annee, mois - 1, 1, 0, 0, 0, 0);
+    const fin = new Date(annee, mois, 0, 23, 59, 59, 999);
+    return dateLigne >= debut && dateLigne <= fin;
+  }
+
+  return true;
+}
 function getTotauxClub(club) {
   const actionsDuClub = actionsFiltrees.filter(
     (a) => String(a.club_id) === String(club.id || club.identifiant)
@@ -554,17 +755,13 @@ const toutesLesActions =
 
 const actionsFiltrees = toutesLesActions.filter(isActionDansPeriode);
 
-const dateReference = dateDepuis
-  ? new Date(dateDepuis + "T00:00:00")
+const dateReference = moisSelectionne
+  ? new Date(moisSelectionne + "-01T00:00:00")
   : new Date();
 
 const moisReference = dateReference.getMonth() + 1;
 const anneeReference = dateReference.getFullYear();
 
-const exerciceFiscalReference =
-  modeObjectif === "Exercice fiscal"
-    ? Number(exerciceSelectionne)
-    : getExerciceFiscal(dateReference);
 
 const objectifsFiltresCommercial =
   commercialActif === "Toute l'équipe"
@@ -948,7 +1145,10 @@ const largeurBleuCumulVisites =
 /* =========================================================
    BLOC 11 - OUTILS DE SAISIE ET OPTIONS DYNAMIQUES
 ========================================================= */
-  function chargerPiece(file) {
+function formatMontant(valeur) {
+  return Number(valeur || 0).toFixed(2);
+} 
+ function chargerPiece(file) {
     if (!file) return;
 
     const reader = new FileReader();
@@ -999,7 +1199,49 @@ const largeurBleuCumulVisites =
    BLOC 12 - CALCULS DASHBOARD ET RECHERCHE
 ========================================================= */
   const rechercheMin = recherche.trim().toLowerCase();
+const planningRechercheMin = planningRechercheClub.trim().toLowerCase();
 
+const clubsFiltresPlanning = clubs.filter((club) => {
+  const commercialOk =
+    planningFiltreCommercial === "Tous" ||
+    (club.commercial || "") === planningFiltreCommercial;
+
+  if (!commercialOk) return false;
+
+  const sportOk =
+    planningFiltreSport === "Tous les sports" ||
+    (club.sport || "") === planningFiltreSport;
+
+  if (!sportOk) return false;
+
+  if (planningRechercheMin === "") return true;
+
+  const clubId = club.id || club.identifiant;
+
+  const codeMatch = (club.code || "").toLowerCase().includes(planningRechercheMin);
+  const nomMatch = (club.nom || "").toLowerCase().includes(planningRechercheMin);
+  const villeMatch = (club.ville || "").toLowerCase().includes(planningRechercheMin);
+
+  const contactsDuClub = allContacts.filter(
+    (contact) => String(contact.club_id) === String(clubId)
+  );
+
+  const contactNomMatch = contactsDuClub.some((contact) =>
+    (contact.nom || "").toLowerCase().includes(planningRechercheMin)
+  );
+
+  const contactTelMatch = contactsDuClub.some((contact) =>
+    (contact.telephone || "").toLowerCase().includes(planningRechercheMin)
+  );
+
+  return (
+    codeMatch ||
+    nomMatch ||
+    villeMatch ||
+    contactNomMatch ||
+    contactTelMatch
+  );
+});
 const clubsFiltres = clubsFiltresCommercial.filter((club) => {
   const sportOk =
     filtreSport === "Tous les sports" || (club.sport || "") === filtreSport;
@@ -1014,18 +1256,17 @@ const clubsFiltres = clubsFiltresCommercial.filter((club) => {
 
   const actionsDuClubDansPeriode = actionsDuClub.filter(isActionDansPeriode);
   if (filtreBlocDashboard === "VISITES_MOIS") {
-    const visitesDuMois = actionsDuClub.filter((a) => {
-      if (a.type !== "Visite club") return false;
-      if (!a.date) return false;
+const visitesDuMois = actionsDuClub.filter((a) => {
+  if (a.type !== "Visite club") return false;
+  if (!a.date) return false;
 
-      const d = new Date(a.date + "T00:00:00");
-      const maintenant = new Date();
+  const d = new Date(a.date + "T00:00:00");
 
-      return (
-        d.getMonth() === maintenant.getMonth() &&
-        d.getFullYear() === maintenant.getFullYear()
-      );
-    });
+  return (
+    d.getMonth() + 1 === moisReference &&
+    d.getFullYear() === anneeReference
+  );
+});
 
     if (visitesDuMois.length === 0) return false;
   }
@@ -1394,123 +1635,170 @@ function ouvrirGoogleAgendaDepuisPlanning(ligne) {
 /* =========================================================
   BLOC 15 - RENDU ECRAN PLANNING
 ========================================================= */
-  if (userConnected && screen === "planning") {
-    const planningUtilisateur =
-      commercialActif === "Toute l'équipe"
-        ? planning
-        : planning.filter((ligne) => ligne.commercial === commercialActif);
+if (userConnected && screen === "planning") {
 
-    return (
-      <div style={stylePage}>
-	   
-        <h2>Planning semaine</h2>
+  const planningCommercial =
+    commercialActif === "Toute l'équipe"
+      ? planning
+      : planning.filter((ligne) => ligne.commercial === commercialActif);
 
-        <div
-          style={{
-            background: "white",
-            padding: 15,
-            borderRadius: 10,
-            marginBottom: 20
-          }}
-        >
-          <strong>Filtre commercial : </strong>
-          <select
-            style={{ padding: 10, marginLeft: 10 }}
-            value={filtreCommercial}
-            onChange={(e) => setFiltreCommercial(e.target.value)}
-          >
-            <option>Moi</option>
-            <option>Adrien</option>
-            <option>Hervé</option>
-            <option>Bruno</option>
-            <option>Arbresle</option>
-            <option>Confluence</option>
-            <option>Compta</option>
-            <option>Toute l'équipe</option>
-          </select>
-        </div>
+  const planningUtilisateur = planningCommercial.filter(isPlanningDansPeriode);
 
-        {planningUtilisateur.map((ligne) => (
-          <div
-            key={ligne.id}
-            style={{
-              background: "white",
-              borderRadius: 10,
-              padding: 12,
-              marginBottom: 10
-            }}
-          >
-<div><strong>{ligne.jour}</strong></div>
-<div>
-  {ligne.date_rdv || ""}{" "}
-  {ligne.heure_rdv ? `- ${ligne.heure_rdv}` : ""}
-  {ligne.duree_rdv ? ` - ${ligne.duree_rdv}` : ""}
-</div>
-<div>{ligne.type}</div>
-<div>{ligne.clubCode} - {ligne.clubNom}</div>
-<div>{ligne.commentaire}</div>
-<div><em>{ligne.commercial}</em></div>
-<button
-  style={{
-    padding: 8,
-    marginTop: 10,
-    marginRight: 10,
-    background: "#1565c0",
-    color: "white",
-    border: "none",
-    borderRadius: 6
-  }}
-  onClick={() => ouvrirGoogleAgendaDepuisPlanning(ligne)}
->
-  Google Agenda
-</button>
+  return (
+    <div style={stylePage}>
+
+      <h2>Planning semaine</h2>
+
+      {/* ================= FILTRES HAUT = AFFICHAGE DU PLANNING ================= */}
+      <div
+        style={{
+          background: "white",
+          padding: 15,
+          borderRadius: 10,
+          marginBottom: 20,
+          position: "sticky",
+          top: 10,
+          zIndex: 1000,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.12)"
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+
+          {/* Filtre commercial affichage planning */}
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Filtre commercial</div>
+            <select
+              style={{ padding: 10, minWidth: 180 }}
+              value={filtreCommercial}
+              onChange={(e) => setFiltreCommercial(e.target.value)}
+            >
+              <option>Moi</option>
+              <option>Adrien</option>
+              <option>Hervé</option>
+              <option>Bruno</option>
+              <option>Arbresle</option>
+              <option>Confluence</option>
+              <option>Compta</option>
+              <option>Toute l'équipe</option>
+            </select>
+          </div>
+
+          {/* Période affichage planning */}
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Période</div>
+            <select
+              style={{ padding: 10, minWidth: 220 }}
+              value={filtrePlanningPeriode}
+              onChange={(e) => setFiltrePlanningPeriode(e.target.value)}
+            >
+              <option>Semaine en cours</option>
+              <option>Semaine précédente</option>
+              <option>Semaine suivante</option>
+              <option>Mois en cours</option>
+              <option>Mois précédent</option>
+              <option>Mois suivant</option>
+              <option>Date du mois</option>
+            </select>
+          </div>
+
+          {filtrePlanningPeriode === "Date du mois" && (
+            <div>
+              <div style={{ fontWeight: "bold", marginBottom: 5 }}>Mois</div>
+              <input
+                type="month"
+                style={{ padding: 10, minWidth: 180 }}
+                value={planningMoisFiltre}
+                onChange={(e) => setPlanningMoisFiltre(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end" }}>
             <button
               style={{
-                padding: 8,
-                marginTop: 10,
-                background: "#b71c1c",
+                padding: 10,
+                background: "#2e7d32",
                 color: "white",
                 border: "none",
                 borderRadius: 6
               }}
-              onClick={async () => {
-                const ok = window.confirm(
-                  "Voulez-vous vraiment supprimer cette ligne du planning ?"
-                );
-                if (!ok) return;
-
-                const { error } = await supabase
-                  .from("planning")
-                  .delete()
-                  .eq("id", ligne.id);
-
-                if (error) {
-                  console.log("ERREUR DELETE PLANNING :", error);
-                  alert("Erreur lors de la suppression du planning");
-                  return;
-                }
-
-                setPlanning((prev) => prev.filter((p) => p.id !== ligne.id));
-              }}
+              onClick={() => setScreen("club")}
             >
-              Supprimer
+              + Nouveau club
             </button>
           </div>
-        ))}
+        </div>
+      </div>
 
+      {/* ================= LISTE PLANNING ================= */}
+      {planningUtilisateur.map((ligne) => (
         <div
+          key={ligne.id}
           style={{
             background: "white",
-            padding: 15,
             borderRadius: 10,
-            marginTop: 20
+            padding: 12,
+            marginBottom: 10
           }}
         >
-          <h4>Ajouter au planning</h4>
-
+          <div><strong>{ligne.jour}</strong></div>
           <div>
+            {ligne.date_rdv || ""}{" "}
+            {ligne.heure_rdv ? `- ${ligne.heure_rdv}` : ""}
+            {ligne.duree_rdv ? ` - ${ligne.duree_rdv}` : ""}
+          </div>
+          <div>{ligne.type}</div>
+          <div>{ligne.clubCode} - {ligne.clubNom}</div>
+          <div>{ligne.commentaire}</div>
+          <div><em>{ligne.commercial}</em></div>
+
+          <button
+            style={{
+              padding: 8,
+              marginTop: 10,
+              marginRight: 10,
+              background: "#1565c0",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
+            onClick={() => ouvrirGoogleAgendaDepuisPlanning(ligne)}
+          >
+            Google Agenda
+          </button>
+
+          <button
+            style={{
+              padding: 8,
+              marginTop: 10,
+              background: "#b71c1c",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
+            onClick={async () => {
+              const ok = window.confirm("Supprimer ?");
+              if (!ok) return;
+
+              await supabase.from("planning").delete().eq("id", ligne.id);
+              setPlanning((prev) => prev.filter((p) => p.id !== ligne.id));
+            }}
+          >
+            Supprimer
+          </button>
+        </div>
+      ))}
+
+      {/* ================= AJOUT ================= */}
+      <div style={{ background: "white", padding: 15, borderRadius: 10 }}>
+
+        <h4>Ajouter au planning</h4>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Jour</div>
             <select
-              style={{ padding: 10, margin: 10, width: 272 }}
+              style={{ padding: 10, width: 160 }}
               value={planningJour}
               onChange={(e) => setPlanningJour(e.target.value)}
             >
@@ -1524,8 +1812,46 @@ function ouvrirGoogleAgendaDepuisPlanning(ligne) {
           </div>
 
           <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Date</div>
+            <input
+              type="date"
+              style={{ padding: 10, width: 170 }}
+              value={planningDate}
+              onChange={(e) => setPlanningDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Heure</div>
+            <input
+              type="time"
+              style={{ padding: 10, width: 140 }}
+              value={planningHeure}
+              onChange={(e) => setPlanningHeure(e.target.value)}
+              disabled={planningDuree === "journee"}
+            />
+          </div>
+
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Durée</div>
             <select
-              style={{ padding: 10, margin: 10, width: 272 }}
+              style={{ padding: 10, width: 170 }}
+              value={planningDuree}
+              onChange={(e) => setPlanningDuree(e.target.value)}
+            >
+              <option value="30min">30 min</option>
+              <option value="1h">1 h</option>
+              <option value="2h">2 h</option>
+              <option value="3h">3 h</option>
+              <option value="demi-journee">1/2 journée</option>
+              <option value="journee">Journée</option>
+            </select>
+          </div>
+
+          <div>
+            <div style={{ fontWeight: "bold", marginBottom: 5 }}>Type</div>
+            <select
+              style={{ padding: 10, width: 180 }}
               value={planningType}
               onChange={(e) => setPlanningType(e.target.value)}
             >
@@ -1540,98 +1866,150 @@ function ouvrirGoogleAgendaDepuisPlanning(ligne) {
               <option>Suivi</option>
             </select>
           </div>
+        </div>
 
-          <div>
-            <select
-              style={{ padding: 10, margin: 10, width: 272 }}
-              value={clubSelected ? clubSelected.code : ""}
-              onChange={(e) => {
-                const clubTrouve = clubs.find((club) => club.code === e.target.value);
-                setClubSelected(clubTrouve || null);
-              }}
-            >
-              <option value="">Choisir un club</option>
-              {clubs.map((club) => (
-                <option key={club.code} value={club.code}>
-                  {club.code} - {club.nom}
-                </option>
-              ))}
-            </select>
-          </div>
-<div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-  <div>
-    <div>Date</div>
-    <input
-      type="date"
-      value={planningDate}
-      onChange={(e) => setPlanningDate(e.target.value)}
-    />
-  </div>
-
-  <div>
-    <div>Heure</div>
-    <input
-      type="time"
-      value={planningHeure}
-      onChange={(e) => setPlanningHeure(e.target.value)}
-      disabled={planningDuree === "journee"}
-    />
-  </div>
-
-  <div>
-    <div>Durée</div>
-<select
-  value={planningDuree}
-  onChange={(e) => setPlanningDuree(e.target.value)}
->
-  <option value="30min">30 min</option>
-  <option value="1h">1h</option>
-  <option value="2h">2h</option>
-  <option value="3h">3h</option>
-  <option value="demi-journee">1/2 journée</option>
-  <option value="journee">Journée</option>
-</select>
-  </div>
-</div>
-          <div>
-            <input
-              placeholder="Commentaire"
-              style={{ padding: 10, margin: 10, width: 250 }}
-              value={planningCommentaire}
-              onChange={(e) => setPlanningCommentaire(e.target.value)}
-            />
+        {/* ================= FILTRES CLUB POUR LA SAISIE ================= */}
+        <div
+          style={{
+            marginTop: 20,
+            padding: 12,
+            background: "#f7f7f7",
+            borderRadius: 8
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: 10 }}>
+            Filtres pour choisir le club
           </div>
 
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontWeight: "bold", marginBottom: 5 }}>Club / commercial</div>
+              <select
+                style={{ padding: 10, minWidth: 180 }}
+                value={planningFiltreCommercial}
+                onChange={(e) => setPlanningFiltreCommercial(e.target.value)}
+              >
+                <option value="Tous">Tous</option>
+                <option>Adrien</option>
+                <option>Hervé</option>
+                <option>Bruno</option>
+                <option>Arbresle</option>
+                <option>Confluence</option>
+                <option>Compta</option>
+              </select>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: "bold", marginBottom: 5 }}>Sport</div>
+              <select
+                style={{ padding: 10, minWidth: 180 }}
+                value={planningFiltreSport}
+                onChange={(e) => setPlanningFiltreSport(e.target.value)}
+              >
+                <option>Tous les sports</option>
+                {sportsOptions.map((sport) => (
+                  <option key={sport} value={sport}>{sport}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <div style={{ fontWeight: "bold", marginBottom: 5 }}>Recherche club</div>
+              <input
+                style={{ padding: 10, width: "100%" }}
+                placeholder="Code, nom, ville, contact, téléphone"
+                value={planningRechercheClub}
+                onChange={(e) => setPlanningRechercheClub(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 15 }}>
+          <div style={{ fontWeight: "bold", marginBottom: 5 }}>Club</div>
+          <select
+            style={{ padding: 10, width: "100%", maxWidth: 500 }}
+            value={clubSelected ? clubSelected.code : ""}
+            onChange={(e) => {
+              const clubTrouve = clubs.find((club) => club.code === e.target.value);
+              setClubSelected(clubTrouve || null);
+            }}
+          >
+            <option value="">Choisir un club</option>
+
+            {clubsFiltresPlanning.map((club) => (
+              <option key={club.code} value={club.code}>
+                {club.code} - {club.nom} ({club.ville})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {clubsFiltresPlanning.length === 0 && (
+          <div style={{ color: "#b71c1c", fontWeight: "bold", marginTop: 10 }}>
+            Aucun club trouvé avec ces filtres.
+          </div>
+        )}
+
+        {clubsFiltresPlanning.length === 0 && (
           <button
-            style={{ padding: 10, marginRight: 10 }}
+            style={{
+              marginTop: 10,
+              padding: 10,
+              background: "#2e7d32",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
+            onClick={() => setScreen("club")}
+          >
+            + Créer un club
+          </button>
+        )}
+
+        <div style={{ marginTop: 15 }}>
+          <div style={{ fontWeight: "bold", marginBottom: 5 }}>Commentaire</div>
+          <textarea
+            style={{
+              padding: 10,
+              width: "100%",
+              maxWidth: 500,
+              minHeight: 90,
+              resize: "vertical"
+            }}
+            placeholder="Commentaire"
+            value={planningCommentaire}
+            onChange={(e) => setPlanningCommentaire(e.target.value)}
+          />
+        </div>
+
+        <div style={{ marginTop: 15, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            style={{
+              padding: 10,
+              background: "#1565c0",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
             onClick={async () => {
               if (!clubSelected) {
-                alert("Choisir un club");
+                alert("Merci de choisir un club");
                 return;
               }
-if (!planningDate) {
-  alert("Choisir une date");
-  return;
-}
 
-if (planningDuree !== "journee" && !planningHeure) {
-  alert("Choisir une heure");
-  return;
-}
               const nouvelleLigne = {
-				  
-  commercial: userConnected,
-  jour: planningJour,
-  type: planningType,
-  clubCode: clubSelected.code,
-  clubNom: clubSelected.nom,
-  club_id: clubSelected.id || clubSelected.identifiant,
-  commentaire: planningCommentaire,
-  date_rdv: planningDate,
-  heure_rdv: planningDuree === "journee" ? null : planningHeure,
-  duree_rdv: planningDuree
-};
-            
+                jour: planningJour,
+                date_rdv: planningDate,
+                heure_rdv: planningDuree === "journee" ? "" : planningHeure,
+                duree_rdv: planningDuree,
+                type: planningType,
+                commentaire: planningCommentaire,
+                club_id: clubSelected.id || clubSelected.identifiant,
+                clubCode: clubSelected.code || "",
+                clubNom: clubSelected.nom || "",
+                commercial: userConnected?.nom || ""
+              };
 
               const { data, error } = await supabase
                 .from("planning")
@@ -1639,35 +2017,64 @@ if (planningDuree !== "journee" && !planningHeure) {
                 .select()
                 .single();
 
-if (error) {
-  console.log("ERREUR INSERT PLANNING :", error);
-  alert("Erreur planning : " + error.message);
-  return;
-}
+              if (error) {
+                console.log("ERREUR INSERT PLANNING :", error);
+                alert("Erreur lors de l'enregistrement du planning");
+                return;
+              }
 
               setPlanning((prev) => [data, ...prev]);
 
               setPlanningJour("Lundi");
-setPlanningDate(getDateJourPlanning("Lundi"));
-setPlanningHeure("10:00");
-setPlanningDuree("1h");
-setPlanningType("Visite club");
-setPlanningCommentaire("");
+              setPlanningDate(getDateJourPlanning("Lundi"));
+              setPlanningHeure("10:00");
+              setPlanningDuree("1h");
+              setPlanningType("Visite club");
+              setPlanningCommentaire("");
+              setClubSelected(null);
+
+              /* remise à zéro des filtres de choix club */
+              setPlanningFiltreCommercial("Tous");
+              setPlanningFiltreSport("Tous les sports");
+              setPlanningRechercheClub("");
             }}
           >
             Ajouter au planning
           </button>
 
-          <button
-            style={{ padding: 10 }}
-            onClick={() => setScreen("dashboard")}
-          >
-            Retour
-          </button>
+          {clubSelected && (
+            <button
+              style={{
+                padding: 10,
+                background: "#2e7d32",
+                color: "white",
+                border: "none",
+                borderRadius: 6
+              }}
+              onClick={() => {
+                const ligneTemp = {
+                  type: planningType,
+                  clubCode: clubSelected.code || "",
+                  clubNom: clubSelected.nom || "",
+                  commercial: userConnected?.nom || "",
+                  commentaire: planningCommentaire,
+                  date_rdv: planningDate,
+                  heure_rdv: planningDuree === "journee" ? "" : planningHeure,
+                  duree_rdv: planningDuree,
+                  jour: planningJour
+                };
+
+                ouvrirGoogleAgendaDepuisPlanning(ligneTemp);
+              }}
+            >
+              Préparer Google Agenda
+            </button>
+          )}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
   /* =========================================================
   BLOC 16 - RENDU ECRAN DETAIL CLUB
 ========================================================= */
@@ -2101,8 +2508,8 @@ const pieces = piecesClub || [];
               <div><strong>{action.type}</strong></div>
               <div>{action.date}</div>
               {action.montantTTC !== undefined && action.montantTTC !== "" && (
-                <div><strong>Montant TTC :</strong> {action.montantTTC} €</div>
-              )}
+  <div><strong>Montant TTC :</strong> {formatMontant(action.montantTTC)} €</div>
+)}
               <div>{action.commentaire}</div>
 
               <button
@@ -2172,12 +2579,13 @@ const pieces = piecesClub || [];
           </div>
 
           <div>
-            <input
-              placeholder="Commentaire"
-              style={{ padding: 10, margin: 10, width: 250 }}
-              value={actionCommentaire}
-              onChange={(e) => setActionCommentaire(e.target.value)}
-            />
+<textarea
+  placeholder="Commentaire"
+  value={actionCommentaire}
+  onChange={(e) => setActionCommentaire(e.target.value)}
+  rows={5}
+  style={{ padding: 10, margin: 10, width: 250, resize: "vertical" }}
+/>
           </div>
 
           {["Livraison", "Facturé", "Payé"].includes(actionType) && (
@@ -2832,7 +3240,7 @@ const pieces = piecesClub || [];
           <h2>Créer un club</h2>
 
           <p>Code club : {prochainCodeClub}</p>
-          <p>Commercial : {userConnected}</p>
+          <p>Commercial : {userConnected?.nom || ""}</p>
 
           {alerteDoublonClub !== "" && (
             <div
@@ -2990,10 +3398,8 @@ const nouveauClub = {
   sport: sportClub || "",
   adherents: adherentsClub ? Number(adherentsClub) : 0,
   potentiel: potentielClub ? Number(potentielClub) : 0,
-  commercial:
-    typeof userConnected === "string"
-      ? userConnected
-      : userConnected?.nom || ""
+
+commercial: userConnected?.nom || ""
 };
 
               const { data: clubCree, error } = await supabase
@@ -3069,7 +3475,7 @@ const nouveauClub = {
 /* =========================================================
   BLOC 17B - RENDU ECRAN OBJECTIFS
 ========================================================= */
-if (userConnected === "Bruno" && screen === "objectifs") {
+if (userConnected?.role === "superviseur" && screen === "objectifs") {
   const moisExercice = [
     { label: "Avril", mois: 4 },
     { label: "Mai", mois: 5 },
@@ -3493,11 +3899,6 @@ if (userConnected === "Bruno" && screen === "objectifs") {
   BLOC 18 - RENDU DASHBOARD PRINCIPAL
 ========================================================= */
 if (userConnected) {
-  const planningUtilisateur =
-    commercialActif === "Toute l'équipe"
-      ? planning
-      : planning.filter((ligne) => ligne.commercial === commercialActif);
-
   const totalAdh = clubsFiltres.reduce(
     (sum, c) => sum + Number(c.adherents || 0),
     0
@@ -3522,8 +3923,7 @@ if (userConnected) {
           boxShadow: "0 4px 12px rgba(0,0,0,0.12)"
         }}
       >
-        {/* ===== GAUCHE LOGO ===== */}
-        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 15, flexWrap: "wrap" }}>
           <img
             src={logo}
             alt="Logo"
@@ -3533,17 +3933,16 @@ if (userConnected) {
               display: "block"
             }}
           />
+
           <div>
             <h2 style={{ margin: 0 }}>CRM Clubs</h2>
             <div>
-              Commercial connecté : <strong>{userConnected}</strong>
+              Commercial connecté : <strong>{userConnected?.nom || ""}</strong>
             </div>
           </div>
         </div>
 
-        {/* ===== DROITE BOUTONS ===== */}
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          
           <button
             style={{ padding: 10 }}
             onClick={() => setScreen("club")}
@@ -3552,20 +3951,27 @@ if (userConnected) {
           </button>
 
           <button
-            style={{ padding: 10 }}
+            style={{
+              padding: "6px 10px",
+              background: "#1565c0",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 12
+            }}
             onClick={async () => {
               await chargerPlanning();
               setScreen("planning");
             }}
           >
-            Planning
+            📅 Planning
           </button>
 
-          {userConnected === "Bruno" && (
+          {userConnected?.role === "superviseur" && (
             <button
               style={{ padding: 10 }}
               onClick={() => {
-                setObjectifCommercialSelection("Bruno");
+                setObjectifCommercialSelection(userConnected?.nom || "Bruno");
                 setObjectifExerciceSelection("2026");
                 setScreen("objectifs");
               }}
@@ -3579,6 +3985,19 @@ if (userConnected) {
             onClick={exportClubsCSV}
           >
             Export Excel
+          </button>
+
+          <button
+            style={{
+              padding: 10,
+              background: "#444",
+              color: "white",
+              border: "none",
+              borderRadius: 6
+            }}
+            onClick={handleLogout}
+          >
+            Déconnexion
           </button>
 
           {filtreBlocDashboard !== "Tous" && (
@@ -3597,7 +4016,6 @@ if (userConnected) {
               RAZ filtre bloc
             </button>
           )}
-
         </div>
       </div>
 
@@ -3610,6 +4028,7 @@ if (userConnected) {
           marginTop: 10
         }}
       >
+
 {/* ===================== CA MOIS ===================== */}
 <div
   onClick={() => {
@@ -3625,9 +4044,9 @@ if (userConnected) {
 >
   <h3>CA du mois</h3>
 
-  <div>Objectif : {objectifMoisCA} €</div>
-  <div>Réalisé : {realiseMoisCA} €</div>
-  <div>Écart : {ecartMoisCA} €</div>
+<div>Objectif : {formatMontant(objectifMoisCA)} €</div>
+<div>Réalisé : {formatMontant(realiseMoisCA)} €</div>
+<div>Écart : {formatMontant(ecartMoisCA)} €</div>
   <div>% : {tauxMoisCA.toFixed(1)}%</div>
   <div>
     Statut : <strong>{statutMoisCA}</strong>
@@ -3776,9 +4195,9 @@ if (userConnected) {
 >
           <h3>Cumul CA</h3>
 
-          <div>Objectif : {objectifCumulCA} €</div>
-          <div>Réalisé : {realiseCumulCA} €</div>
-          <div>Écart : {ecartCumulCA} €</div>
+<div>Objectif : {formatMontant(objectifCumulCA)} €</div>
+<div>Réalisé : {formatMontant(realiseCumulCA)} €</div>
+<div>Écart : {formatMontant(ecartCumulCA)} €</div>
           <div>% : {tauxCumulCA.toFixed(1)}%</div>
           <div>
             Statut : <strong>{statutCumulCA}</strong>
@@ -3962,7 +4381,7 @@ if (userConnected) {
             Potentiel total TTC
           </div>
           <div style={{ fontSize: 26, fontWeight: "bold" }}>
-            {potentielTotal} €
+           {formatMontant(potentielTotal)} €
           </div>
         </div>
 
@@ -3994,7 +4413,7 @@ if (userConnected) {
         >
           <div style={{ fontSize: 13, color: "#777" }}>Livraisons TTC</div>
           <div style={{ fontSize: 26, fontWeight: "bold" }}>
-            {totalLivraisonsTTC} €
+         {formatMontant(totalLivraisonsTTC)} €
           </div>
         </div>
 
@@ -4011,7 +4430,7 @@ if (userConnected) {
             Montant facturé TTC
           </div>
           <div style={{ fontSize: 26, fontWeight: "bold" }}>
-            {totalFacturesTTC} €
+          {formatMontant(totalFacturesTTC)} €
           </div>
         </div>
 
@@ -4026,7 +4445,7 @@ if (userConnected) {
         >
           <div style={{ fontSize: 13, color: "#777" }}>Montant payé TTC</div>
           <div style={{ fontSize: 26, fontWeight: "bold" }}>
-            {totalPayesTTC} €
+        {formatMontant(totalPayesTTC)} €
           </div>
         </div>
 
@@ -4043,7 +4462,7 @@ if (userConnected) {
             Solde restant à encaisser
           </div>
           <div style={{ fontSize: 26, fontWeight: "bold" }}>
-            {soldeRestantEncaisser} €
+           {formatMontant(soldeRestantEncaisser)} €
           </div>
         </div>
       </div>
@@ -4115,7 +4534,14 @@ if (userConnected) {
             <option>Exercice fiscal</option>
             <option>Depuis telle date</option>
           </select>
-
+{filtrePeriode === "Mois" && (
+  <input
+    type="month"
+    style={{ padding: 10 }}
+    value={moisSelectionne}
+    onChange={(e) => setMoisSelectionne(e.target.value)}
+  />
+)}
           {filtrePeriode === "Depuis telle date" && (
             <input
               type="date"
@@ -4149,18 +4575,51 @@ if (userConnected) {
         </div>
       </div>
 
-      <div
-        style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}
+<div
+  style={{
+    display: "flex",
+    gap: 20,
+    alignItems: "flex-start",
+    flexWrap: "wrap"
+  }}
+>
+  <div
+    style={{
+      flex: 1,
+      minWidth: 320,
+      background: "white",
+      padding: 20,
+      borderRadius: 12
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 10,
+        marginBottom: 15
+      }}
+    >
+      <h3 style={{ margin: 0 }}>Liste des clubs</h3>
+
+      <button
+        style={{
+          padding: 10,
+          background: "#1565c0",
+          color: "white",
+          border: "none",
+          borderRadius: 6
+        }}
+        onClick={async () => {
+          await chargerPlanning();
+          setScreen("planning");
+        }}
       >
-        <div
-          style={{
-           
-            background: "white",
-            padding: 20,
-            borderRadius: 12
-          }}
-        >
-          <h3>Liste des clubs</h3>
+        Voir le planning
+      </button>
+    </div>
 
           {clubsFiltres.map((club, index) => {
             const { totalLivre, totalFacture, totalPaye } = getTotauxClub(club);
@@ -4234,39 +4693,7 @@ if (userConnected) {
           )}
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            minWidth: 320,
-            background: "white",
-            padding: 20,
-            borderRadius: 12
-          }}
-        >
-          <h3>Planning semaine</h3>
 
-          {planningUtilisateur.slice(0, 5).map((ligne) => (
-            <div
-              key={ligne.id}
-              style={{
-                border: "1px solid #ddd",
-                padding: 10,
-                marginBottom: 10,
-                background: "#fffbe6",
-                borderRadius: 8
-              }}
-            >
-              <div><strong>{ligne.jour}</strong> - {ligne.type}</div>
-              <div>{ligne.clubCode} - {ligne.clubNom}</div>
-              <div>{ligne.commentaire}</div>
-              <div><em>{ligne.commercial}</em></div>
-            </div>
-          ))}
-
-          {planningUtilisateur.length === 0 && (
-            <div>Aucune ligne de planning.</div>
-          )}
-        </div>
       </div>
     </div>
   );
