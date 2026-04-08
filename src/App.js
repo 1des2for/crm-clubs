@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import logo from "./logo.jpg";
 import { supabase } from "./supabaseClient";
-const VERSION = "v4.1.0";
+const VERSION = "v4.2.1";
 /* =========================================================
    BLOC 2 - DÉBUT COMPOSANT + UTILISATEURS
 ========================================================= */
@@ -209,6 +209,7 @@ const [planningMoisFiltre, setPlanningMoisFiltre] = useState(moisDuJourInput);
   
   const [objectifCommercialSelection, setObjectifCommercialSelection] = useState("Bruno");
   const [objectifExerciceSelection, setObjectifExerciceSelection] = useState("2026");
+  const [authLoading, setAuthLoading] = useState(true);
 /* =========================================================
    BLOC 5 - USEEFFECTS DE SYNCHRO LOCALE
 ========================================================= */
@@ -228,42 +229,92 @@ useEffect(() => {
 }, [historiqueTypeOptions]);
 
 useEffect(() => {
-  const restaurerSession = async () => {
-    const {
-      data: { session }
-    } = await supabase.auth.getSession();
+  let actif = true;
 
-    if (!session?.user?.id) return;
-
-    const profil = await chargerProfilUtilisateurParId(session.user.id);
+  const finaliserAuth = (profil) => {
+    if (!actif) return;
 
     if (profil) {
       setUserConnected(profil);
       setFiltreCommercial(profil.nom || "Moi");
+    } else {
+      setUserConnected(null);
+      setFiltreCommercial("Moi");
+    }
+
+    setAuthLoading(false);
+  };
+
+  const timeout = setTimeout(() => {
+    if (!actif) return;
+    console.log("TIMEOUT AUTH : fin forcée du chargement");
+    setAuthLoading(false);
+  }, 4000);
+
+  const restaurerSession = async () => {
+    try {
+      console.log("AUTH - début restauration session");
+
+      const {
+        data: { session },
+        error: sessionError
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.log("ERREUR GET SESSION :", sessionError);
+        finaliserAuth(null);
+        return;
+      }
+
+      if (!actif) return;
+
+      if (!session?.user?.id) {
+        console.log("AUTH - aucune session active");
+        finaliserAuth(null);
+        return;
+      }
+
+      console.log("AUTH - session trouvée :", session.user.id);
+
+      const profil = await chargerProfilUtilisateurParId(session.user.id);
+      console.log("AUTH - profil restauré :", profil);
+
+      finaliserAuth(profil);
+    } catch (e) {
+      console.log("ERREUR RESTAURATION SESSION :", e);
+      finaliserAuth(null);
     }
   };
 
   restaurerSession();
 
-  const {
-    data: { subscription }
-  } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (!session?.user?.id) {
-      setUserConnected(null);
-      setFiltreCommercial("Moi");
-      return;
-    }
+  const { data: listenerData } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      try {
+        if (!actif) return;
 
-    const profil = await chargerProfilUtilisateurParId(session.user.id);
+        console.log("AUTH STATE CHANGE :", event, session?.user?.id || "pas de session");
 
-    if (profil) {
-      setUserConnected(profil);
-      setFiltreCommercial(profil.nom || "Moi");
+        if (!session?.user?.id) {
+          finaliserAuth(null);
+          return;
+        }
+
+        const profil = await chargerProfilUtilisateurParId(session.user.id);
+        console.log("AUTH - profil après changement :", profil);
+
+        finaliserAuth(profil);
+      } catch (e) {
+        console.log("ERREUR onAuthStateChange :", e);
+        finaliserAuth(null);
+      }
     }
-  });
+  );
 
   return () => {
-    subscription.unsubscribe();
+    actif = false;
+    clearTimeout(timeout);
+    listenerData?.subscription?.unsubscribe();
   };
 }, []);
 /* =========================================================
@@ -465,27 +516,31 @@ useEffect(() => {
 /* =========================================================
    BLOC 8 - CONNEXION ET ACTIONS GLOBALES
 ========================================================= */
-  const supprimerContact = async (idContact) => {
-    const confirmation = window.confirm(
-      "Voulez-vous vraiment supprimer ce contact ?"
-    );
-    if (!confirmation) return;
 
-    const { error } = await supabase
-      .from("contacts")
-      .delete()
-      .eq("id", idContact);
+const supprimerContact = async (idContact) => {
+  const confirmation = window.confirm(
+    "Voulez-vous vraiment supprimer ce contact ?"
+  );
+  if (!confirmation) return;
 
-    if (error) {
-      console.log("ERREUR DELETE CONTACT :", error);
-      alert("Erreur lors de la suppression du contact");
-      return;
-    }
+  const { error } = await supabase
+    .from("contacts")
+    .delete()
+    .eq("id", idContact);
 
-    setContactsClub((prev) => prev.filter((c) => c.id !== idContact));
-    setAllContacts((prev) => prev.filter((c) => c.id !== idContact));
-  };
+  if (error) {
+    console.log("ERREUR DELETE CONTACT :", error);
+    alert("Erreur lors de la suppression du contact");
+    return;
+  }
 
+  setContactsClub((prev) => prev.filter((c) => c.id !== idContact));
+  setAllContacts((prev) => prev.filter((c) => c.id !== idContact));
+};
+
+/* =========================
+   LOGIN CORRIGÉ + DEBUG
+========================= */
 const handleLogin = async () => {
   const usernameNettoye = String(username || "").trim().toLowerCase();
   const passwordNettoye = String(password || "");
@@ -495,29 +550,58 @@ const handleLogin = async () => {
     return;
   }
 
-  const profil = await chargerProfilUtilisateurParUsername(usernameNettoye);
+  try {
+    console.log("LOGIN - username saisi :", usernameNettoye);
 
-  if (!profil || !profil.email) {
-    alert("Identifiants incorrects");
-    return;
+    // 1. récupération du profil
+    const profil = await chargerProfilUtilisateurParUsername(usernameNettoye);
+    console.log("LOGIN - profil trouvé :", profil);
+
+    if (!profil || !profil.email) {
+      alert(
+        "Connexion impossible : utilisateur introuvable (table utilisateurs_profils ou RLS)"
+      );
+      return;
+    }
+
+    // 2. connexion Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: profil.email,
+      password: passwordNettoye
+    });
+
+    if (error || !data?.user) {
+      console.log("ERREUR LOGIN AUTH :", error);
+      alert("Mot de passe incorrect ou compte non configuré dans Supabase Auth");
+      return;
+    }
+
+    console.log("LOGIN OK AUTH :", data.user.id);
+
+    // 3. rechargement du profil avec l'id auth
+    const profilRecharge = await chargerProfilUtilisateurParId(data.user.id);
+    console.log("LOGIN - profil rechargé :", profilRecharge);
+
+    if (profilRecharge) {
+      setUserConnected(profilRecharge);
+      setFiltreCommercial(profilRecharge.nom || "Moi");
+    } else {
+      // fallback (au cas où)
+      setUserConnected(profil);
+      setFiltreCommercial(profil.nom || "Moi");
+    }
+
+    setPassword("");
+
+  } catch (e) {
+    console.log("ERREUR HANDLE LOGIN :", e);
+    alert("Erreur de connexion");
   }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: profil.email,
-    password: passwordNettoye
-  });
-
-  if (error || !data?.user) {
-    console.log("ERREUR LOGIN AUTH :", error);
-    alert("Identifiants incorrects");
-    return;
-  }
-
-  setUserConnected(profil);
-  setFiltreCommercial(profil.nom || "Moi");
-  setPassword("");
 };
 
+/* =========================
+   LOGOUT
+========================= */
 const handleLogout = async () => {
   const { error } = await supabase.auth.signOut();
 
@@ -1632,9 +1716,26 @@ function ouvrirGoogleAgendaDepuisPlanning(ligne) {
     document.body.removeChild(lien);
     URL.revokeObjectURL(url);
   }
+  if (authLoading) {
+  return (
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#f2f2f2",
+        fontFamily: "Arial"
+      }}
+    >
+      Chargement...
+    </div>
+  );
+}
 /* =========================================================
   BLOC 15 - RENDU ECRAN PLANNING
 ========================================================= */
+
 if (userConnected && screen === "planning") {
 
   const planningCommercial =
@@ -1646,8 +1747,23 @@ if (userConnected && screen === "planning") {
 
   return (
     <div style={stylePage}>
-
-      <h2>Planning semaine</h2>
+<div style={{ marginBottom: 15, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+  <button
+    onClick={() => setScreen("dashboard")}
+    style={{
+      padding: "8px 15px",
+      borderRadius: 8,
+      border: "none",
+      background: "#333",
+      color: "white",
+      cursor: "pointer"
+    }}
+  >
+    ← Retour dashboard
+  </button>
+  <h2 style={{ margin: 0 }}>Planning semaine</h2>
+</div>
+     
 
       {/* ================= FILTRES HAUT = AFFICHAGE DU PLANNING ================= */}
       <div
@@ -4698,6 +4814,7 @@ if (userConnected) {
     </div>
   );
 }
+
    /* =========================================================
      BLOC 19 - RENDU ECRAN LOGIN
 ========================================================= */ 
